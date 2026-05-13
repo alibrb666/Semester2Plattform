@@ -6,12 +6,7 @@ let _el = null;
 let _ticker = null;
 
 function getElapsed() {
-  const s = SessionTracker.getSession();
-  if (!s?.active) return 0;
-  const now = Date.now();
-  let ms = now - s.startedAt - (s.totalPausedMs || 0);
-  if (s.paused && s.pausedAt) ms -= (now - s.pausedAt);
-  return Math.max(0, Math.floor(ms / 1000));
+  return SessionTracker.getTotalElapsedSeconds();
 }
 
 export const FocusMode = {
@@ -45,10 +40,7 @@ export const FocusMode = {
 
     const noteInput = el.querySelector('.focus-note');
     noteInput.addEventListener('input', () => {
-      const s = SessionTracker.getSession();
-      if (s) {
-        SessionTracker._session = { ...SessionTracker._session, note: noteInput.value };
-      }
+      SessionTracker.updateSessionNote(noteInput.value);
     });
 
     document.body.appendChild(el);

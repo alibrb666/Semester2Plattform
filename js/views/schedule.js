@@ -11,6 +11,7 @@ const TOTAL_H = END_H - START_H;
 let _weekOffset = 0;
 let _dragState   = null;
 let _timeIndicator = null;
+let _scheduleMinuteTimer = null;
 
 const colorMap = { klr:'var(--subject-klr)', math:'var(--subject-math)', prog:'var(--subject-prog)', kbs:'var(--subject-kbs)' };
 
@@ -36,6 +37,10 @@ function dayKeyToIndex(key) {
 }
 
 export function renderSchedule(container) {
+  if (_scheduleMinuteTimer) {
+    clearInterval(_scheduleMinuteTimer);
+    _scheduleMinuteTimer = null;
+  }
   const subjects = State.getSubjects();
   const weekDays = getWeekDays(addDays(getWeekMonday(), _weekOffset * 7));
   const todayIdx = weekDays.findIndex(d => isSameDay(d, new Date()));
@@ -87,7 +92,7 @@ export function renderSchedule(container) {
   renderIcons(container);
   _placeBlocks(container, weekDays);
   _updateTimeIndicator(container, todayIdx);
-  setInterval(() => _updateTimeIndicator(container, todayIdx), 60000);
+  _scheduleMinuteTimer = setInterval(() => _updateTimeIndicator(container, todayIdx), 60000);
   _bindEvents(container, weekDays, subjects);
 }
 

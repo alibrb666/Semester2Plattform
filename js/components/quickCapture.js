@@ -70,7 +70,6 @@ function buildFields(type, subjects) {
 export const QuickCapture = {
   init() {
     document.addEventListener('app:quick-capture', () => this.open());
-    document.getElementById('fab-quick-capture')?.addEventListener('click', () => this.open());
   },
 
   open(defaultType = 'error') {

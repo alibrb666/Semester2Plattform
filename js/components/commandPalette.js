@@ -20,7 +20,7 @@ function getActions() {
     id: 'start-'+s.id,
     label: `Session starten – ${s.name}`,
     icon: 'play',
-    action: () => SessionTracker.start(s.id)
+    action: () => SessionTracker.openNewSession(s.id)
   }));
   return [
     ...startActions,

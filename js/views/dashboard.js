@@ -1,10 +1,11 @@
 import { State } from '../state.js';
 import { greeting, formatDateDE, getPhase, getStreak, getTodaySessions, getWeekSessions,
   getWeekMonday, getSubjectSessions, sumDuration, formatDuration, daysUntil,
-  isSameDay, isReviewDue, groupByDay, renderIcons } from '../util.js';
+  isSameDay, isReviewDue, groupByDay, renderIcons, uuid, addDays } from '../util.js';
 import { SessionTracker } from '../components/sessionTracker.js';
 import { renderHeatmap } from '../components/heatmap.js';
 import { Modal } from '../components/modal.js';
+import { Toast } from '../components/toast.js';
 
 export function renderDashboard(container) {
   const state    = State.get();
@@ -185,8 +186,8 @@ export function renderDashboard(container) {
   /* Quick-start clicks */
   container.querySelectorAll('[data-start-subject]').forEach(card => {
     const id = card.dataset.startSubject;
-    card.addEventListener('click', () => SessionTracker.start(id));
-    card.addEventListener('keydown', e => { if (e.key === 'Enter') SessionTracker.start(id); });
+    card.addEventListener('click', () => SessionTracker.openNewSession(id));
+    card.addEventListener('keydown', e => { if (e.key === 'Enter') SessionTracker.openNewSession(id); });
   });
 
   /* Recent session clicks */
@@ -359,6 +360,3 @@ function openReviewModal() {
 
   renderIcons(modal.el);
 }
-
-import { uuid, addDays } from '../util.js';
-import { Toast } from '../components/toast.js';

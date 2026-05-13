@@ -1,3 +1,5 @@
+import { renderIcons } from './util.js';
+
 const _routes = {};
 let _current = null;
 const _listeners = new Set();
@@ -21,15 +23,19 @@ export const Router = {
   _handle() {
     const hash = window.location.hash.slice(1) || 'dashboard';
     const [route] = hash.split('?');
-    const name = Object.keys(_routes).find(r => r === route) || 'dashboard';
-    if (name === _current) return;
-    _current = name;
     const view = document.getElementById('view-root');
     if (!view) return;
+    const name = Object.keys(_routes).find(r => r === route) || 'dashboard';
+    if (name === _current) {
+      renderIcons(view);
+      return;
+    }
+    _current = name;
     const renderFn = _routes[name];
     if (renderFn) {
       view.innerHTML = '';
       renderFn(view);
+      renderIcons(view);
     }
     _listeners.forEach(fn => fn(name));
   },

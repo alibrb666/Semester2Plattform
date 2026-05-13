@@ -19,7 +19,7 @@ import { renderErrors }    from './views/errors.js';
 import { renderMocks }     from './views/mocks.js';
 import { renderSettings }  from './views/settings.js';
 import { generateDemoData } from './demo.js';
-import { uuid, renderIcons } from './util.js';
+import { renderIcons } from './util.js';
 
 /* ── Default state ─────────────────────────────────────────── */
 function defaultScheduleBlocks() {
@@ -58,10 +58,21 @@ const DEFAULT_STATE = {
   achievements: { longestStreak:0, totalHours:0 }
 };
 
+function waitForGlobal(prop, ms = 3000) {
+  return new Promise(resolve => {
+    const t0 = Date.now();
+    const tick = () => {
+      if (window[prop]) { resolve(); return; }
+      if (Date.now() - t0 >= ms) { resolve(); return; }
+      requestAnimationFrame(tick);
+    };
+    tick();
+  });
+}
+
 /* ── Boot ───────────────────────────────────────────────────── */
 async function boot() {
-  /* Wait for Lucide */
-  await waitForLucide();
+  await Promise.all([waitForLucide(5000), waitForGlobal('Chart', 3000)]);
 
   const stored = Storage.load();
   if (!stored) {
@@ -107,14 +118,19 @@ function launchApp() {
   QuickCapture.init();
   FocusMode.init();
   initKeyboard();
-  initGlobalActions();
+  initActionDelegation();
+
+  document.addEventListener('app:shortcuts', () => showShortcuts());
 
   /* Start router (triggers first render) */
   Router.init();
 
-  /* Re-render icons after each route change */
-  Router.onChange(route => {
-    setTimeout(() => renderIcons(document.getElementById('view-root')), 10);
+  Router.onChange(() => {
+    const vr = document.getElementById('view-root');
+    if (vr) renderIcons(vr);
+    renderIcons(document.getElementById('sidebar-nav'));
+    renderIcons(document.getElementById('mobile-tabs'));
+    renderIcons(document.getElementById('session-widget'));
   });
 
   /* Render after session saved */
@@ -144,15 +160,19 @@ function initKeyboard() {
   });
 }
 
-function initGlobalActions() {
+/** Single global delegation for every `[data-action]` control (shell, FAB, future views). */
+function initActionDelegation() {
   document.addEventListener('click', e => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
-    if (btn.dataset.action === 'toggle-sidebar') return; /* handled by TopBar */
-    if (btn.dataset.action === 'toggle-theme')   return;
-    if (btn.dataset.action === 'open-palette')   return;
-    if (btn.dataset.action === 'open-shortcuts') showShortcuts();
-    if (btn.dataset.action === 'quick-capture')  document.dispatchEvent(new CustomEvent('app:quick-capture'));
+    switch (btn.dataset.action) {
+      case 'toggle-sidebar': TopBar.toggleSidebar(); break;
+      case 'toggle-theme':   Theme.toggle(); break;
+      case 'open-palette':   document.dispatchEvent(new CustomEvent('app:palette')); break;
+      case 'open-shortcuts': showShortcuts(); break;
+      case 'quick-capture':  document.dispatchEvent(new CustomEvent('app:quick-capture')); break;
+      default: break;
+    }
   });
 }
 

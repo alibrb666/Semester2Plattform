@@ -113,7 +113,17 @@ Niemals Hex-Werte direkt im CSS — immer über Tokens wie `var(--accent)`.
 
 Storage-Key: `learn.v1` · Throttled writes (max alle 500ms) · QuotaError-Handling
 
----
+### Event-Handling-Architektur
+
+Alle Shell- und FAB-Aktionen nutzen **`data-action`** am klickbaren Element (nicht am Lucide-`<i>`).  
+Ein **einzelner** `click`-Listener auf `document` delegiert über `event.target.closest('[data-action]')` an die passende Aktion (`toggle-sidebar`, `toggle-theme`, `open-palette`, `open-shortcuts`, `quick-capture`). So funktionieren Buttons auch dann, wenn Lucide die Icons nach dem ersten Paint durch `<svg>` ersetzt.
+
+Spezialfälle:
+
+- **Session-Widget:** nutzt eigenes `data-widget-action` mit Delegation auf dem Widget-Container (häufige Re-Renders).
+- **Modals:** schließen per direkt am gemounteten Backdrop gebundenen Listenern; Body-Inhalt kann zusätzlich `data-action` nutzen, wenn die Buttons im `#app`-Subtree liegen.
+- **Nach View-Wechsel:** der Router ruft `renderIcons(view-root)` auf; `Router.onChange` aktualisiert zudem Sidebar, Mobile-Tabs und Session-Widget.
+
 
 ## Features (Übersicht)
 

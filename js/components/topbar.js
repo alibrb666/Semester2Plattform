@@ -1,33 +1,19 @@
 import { State } from '../state.js';
-import { Theme } from '../theme.js';
-import { daysUntil, formatDuration, sumDuration, getSubjectSessions, renderIcons } from '../util.js';
+import { daysUntil, formatDuration, sumDuration, getSubjectSessions, renderIcons,
+  formatDateFull, formatTime } from '../util.js';
 import { Modal } from './modal.js';
-import { formatDateFull, formatTime } from '../util.js';
 
 let _interval = null;
 
 export const TopBar = {
   init() {
-    this._bindActions();
     this._render();
     _interval = setInterval(() => this._renderCountdowns(), 60000);
     State.subscribe(() => this._render());
   },
 
-  _bindActions() {
-    document.addEventListener('click', e => {
-      const btn = e.target.closest('[data-action]');
-      if (!btn) return;
-      switch (btn.dataset.action) {
-        case 'toggle-sidebar': this._toggleSidebar(); break;
-        case 'toggle-theme':   Theme.toggle(); break;
-        case 'open-palette':   document.dispatchEvent(new CustomEvent('app:palette')); break;
-        case 'open-shortcuts': document.dispatchEvent(new CustomEvent('app:shortcuts')); break;
-      }
-    });
-  },
-
-  _toggleSidebar() {
+  /** Called from central `data-action` delegation in app.js */
+  toggleSidebar() {
     const html = document.documentElement;
     const collapsed = html.dataset.sidebar === 'collapsed';
     if (collapsed) delete html.dataset.sidebar;
