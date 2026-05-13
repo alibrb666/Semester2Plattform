@@ -1,5 +1,5 @@
 const KEY = 'learn.v1';
-const CURRENT_VERSION = 1;
+const CURRENT_VERSION = 2;
 let _saveTimer = null;
 
 export const Storage = {
@@ -9,7 +9,9 @@ export const Storage = {
       if (!raw) return null;
       const data = JSON.parse(raw);
       if (!data.version || data.version < CURRENT_VERSION) {
-        return this.migrate(data, data.version || 0);
+        const migrated = this.migrate(data, data.version || 0);
+        this.saveNow(migrated);
+        return migrated;
       }
       return data;
     } catch (e) {
@@ -45,6 +47,10 @@ export const Storage = {
   clear() {
     if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
     localStorage.removeItem(KEY);
+    try {
+      localStorage.removeItem('learn.v1.scheduleCache');
+      localStorage.removeItem('learn.v1.eventSubjectMap');
+    } catch (_) {}
   },
 
   migrate(data, fromVersion) {
@@ -60,6 +66,62 @@ export const Storage = {
       data.mocks       = data.mocks       || [];
       data.weeklyReviews = data.weeklyReviews || [];
       data.achievements = data.achievements || { longestStreak:0, totalHours:0 };
+    }
+    if (fromVersion < 2) {
+      const sessions = data.sessions || [];
+      const needsTaskMigration = sessions.some(s => !Array.isArray(s.tasks) || s.tasks.length === 0);
+      if (needsTaskMigration) {
+        try {
+          const json = JSON.stringify(data);
+          const blob = new Blob([json], { type: 'application/json' });
+          const url  = URL.createObjectURL(blob);
+          const a    = document.createElement('a');
+          a.href = url;
+          a.download = `lernplattform-v1-backup-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.json`;
+          a.rel = 'noopener';
+          a.click();
+          URL.revokeObjectURL(url);
+        } catch (e) {
+          console.warn('[Storage] v1 backup download skipped:', e);
+        }
+      }
+
+      data.sessions = sessions.map(s => {
+        if (Array.isArray(s.tasks) && s.tasks.length) return s;
+        const dur = Math.round(Number(s.durationSeconds) || 0);
+        const ended = s.endedAt || s.startedAt || new Date().toISOString();
+        const started = s.startedAt || ended;
+        const tid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : `t-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        const title = (typeof s.note === 'string' && s.note.trim()) ? s.note.trim().slice(0, 50) : 'Allgemein';
+        return {
+          ...s,
+          durationSeconds: dur,
+          tasks: [{
+            id: tid,
+            title,
+            status: 'done',
+            durationSeconds: dur,
+            activeStartedAt: null,
+            segments: [{ startedAt: started, endedAt: ended, seconds: dur }],
+            createdAt: started,
+            completedAt: ended,
+            note: ''
+          }]
+        };
+      });
+      data.version = 2;
+    }
+    if (!data.schedulePrefs) {
+      data.schedulePrefs = {
+        source: 'manual',
+        icsUrl: '',
+        icsFileName: null,
+        lastSyncedAt: null,
+        lastError: null,
+        eventCount: 0
+      };
     }
     return data;
   }

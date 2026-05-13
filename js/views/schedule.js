@@ -1,8 +1,10 @@
 import { State } from '../state.js';
+import { Storage } from '../storage.js';
 import { uuid, getWeekMonday, getWeekDays, getDayName, isoDate, isSameDay,
-  timeToMinutes, minutesToTime, snapMinutes, renderIcons, addDays } from '../util.js';
+  timeToMinutes, minutesToTime, snapMinutes, renderIcons, addDays, endOfDay } from '../util.js';
 import { Modal } from '../components/modal.js';
 import { Toast } from '../components/toast.js';
+import * as scheduleSync from '../scheduleSync.js';
 
 const HOUR_H  = 80;
 const START_H = 6;
@@ -27,6 +29,31 @@ function topToTime(px) {
 
 function blockHeight(start, end) {
   return (timeToMinutes(end) - timeToMinutes(start)) * (HOUR_H / 60);
+}
+
+function dateToHm(iso) {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function blockDateStrForWeek(block, weekDays) {
+  if (block.date) return block.date.split('T')[0];
+  const di = dayKeyToIndex(block.day);
+  if (di < 0 || di > 6) return null;
+  return isoDate(weekDays[di]);
+}
+
+function icsOverlapsBlock(block, weekDays, icsEvents) {
+  const dateStr = blockDateStrForWeek(block, weekDays);
+  if (!dateStr || !icsEvents?.length) return false;
+  const b0 = timeToMinutes(block.startTime);
+  const b1 = timeToMinutes(block.endTime);
+  return icsEvents.some(ev => {
+    if (ev.startsAt.slice(0, 10) !== dateStr) return false;
+    const hm0 = timeToMinutes(dateToHm(ev.startsAt));
+    const hm1 = timeToMinutes(dateToHm(ev.endsAt));
+    return b0 < hm1 && b1 > hm0;
+  });
 }
 
 function dayIndexToKey(i) {
@@ -66,6 +93,7 @@ export function renderSchedule(container) {
           <i data-lucide="plus"></i> Lernblock
         </button>
       </div>
+      <div class="schedule-sync-bar" id="schedule-sync-bar" style="display:none"></div>
 
       <div class="schedule-day-headers">
         <div style="width:56px"></div>
@@ -91,6 +119,8 @@ export function renderSchedule(container) {
 
   renderIcons(container);
   _placeBlocks(container, weekDays);
+  _placeIcsEvents(container, weekDays);
+  _updateScheduleSyncBar(container);
   _updateTimeIndicator(container, todayIdx);
   _scheduleMinuteTimer = setInterval(() => _updateTimeIndicator(container, todayIdx), 60000);
   _bindEvents(container, weekDays, subjects);
@@ -125,10 +155,19 @@ function _placeBlocks(container, weekDays) {
   const wrap   = container.querySelector('#schedule-grid');
   if (!wrap) return;
 
+  const prefs = State.get().schedulePrefs || {};
+  const cache = scheduleSync.loadCache();
+  const useIcs = (prefs.source === 'ics-url' || prefs.source === 'ics-file')
+    && Array.isArray(cache.events) && cache.events.length > 0;
+  const weekIcs = useIcs
+    ? scheduleSync.filterEventsForRange(cache.events, weekDays[0], endOfDay(weekDays[6]))
+    : [];
+
   /* Remove existing blocks */
-  wrap.querySelectorAll('.schedule-block').forEach(b => b.remove());
+  wrap.querySelectorAll('.schedule-block:not(.ics-sync)').forEach(b => b.remove());
 
   blocks.forEach(block => {
+    if (useIcs && block.locked) return;
     let dayIdx;
     if (block.date) {
       dayIdx = weekDays.findIndex(d => isoDate(d) === block.date.split('T')[0]);
@@ -144,9 +183,10 @@ function _placeBlocks(container, weekDays) {
     const height = blockHeight(block.startTime, block.endTime);
     const color  = colorMap[block.subjectId] || 'var(--accent)';
     const isConflict = checkConflict(blocks, block);
+    const icsHit = useIcs && !block.locked && icsOverlapsBlock(block, weekDays, weekIcs);
 
     const el = document.createElement('div');
-    el.className = `schedule-block${block.locked ? ' locked' : ''}${isConflict ? ' conflict' : ''}`;
+    el.className = `schedule-block${block.locked ? ' locked' : ''}${isConflict || icsHit ? ' conflict' : ''}`;
     el.dataset.blockId = block.id;
     el.style.cssText = `top:${top}px;height:${Math.max(24,height)}px;background:${color}22;color:${color};border:1px solid ${color}44`;
     el.innerHTML = `
@@ -154,6 +194,97 @@ function _placeBlocks(container, weekDays) {
       <div class="schedule-block-time">${block.startTime}–${block.endTime}</div>
       ${!block.locked ? '<div class="block-resize-handle" data-role="resize"></div>' : ''}`;
     col.appendChild(el);
+  });
+}
+
+function _placeIcsEvents(container, weekDays) {
+  const prefs = State.get().schedulePrefs || {};
+  const cache = scheduleSync.loadCache();
+  const wrap  = container.querySelector('#schedule-grid');
+  if (!wrap) return;
+  wrap.querySelectorAll('.schedule-block.ics-sync').forEach(b => b.remove());
+
+  if (prefs.source === 'manual' || !cache.events?.length) return;
+
+  const overrides = scheduleSync.loadOverrides();
+  const events = scheduleSync
+    .filterEventsForRange(cache.events, weekDays[0], endOfDay(weekDays[6]))
+    .map(e => scheduleSync.enrichEvent(e, overrides));
+
+  events.forEach(ev => {
+    const dayIdx = weekDays.findIndex(d => isoDate(d) === ev.startsAt.slice(0, 10));
+    if (dayIdx < 0) return;
+    const col = wrap.querySelectorAll('.schedule-day-col')[dayIdx];
+    if (!col) return;
+    const st = dateToHm(ev.startsAt);
+    const en = dateToHm(ev.endsAt);
+    const top = timeToTop(st);
+    const height = Math.max(24, blockHeight(st, en));
+    const color = ev.subjectId ? (colorMap[ev.subjectId] || 'var(--accent)') : 'rgba(148,163,184,0.55)';
+
+    const el = document.createElement('div');
+    el.className = 'schedule-block ics-sync locked';
+    el.dataset.icsId = ev.id;
+    el.style.cssText = `top:${top}px;height:${height}px;background:${color}18;color:${color};border:1px solid ${color}55`;
+    const lab = document.createElement('div');
+    lab.className = 'schedule-block-label';
+    lab.textContent = ev.title || 'Termin';
+    const tim = document.createElement('div');
+    tim.className = 'schedule-block-time';
+    tim.textContent = `${st}–${en}`;
+    el.appendChild(lab);
+    el.appendChild(tim);
+    if (ev.location) {
+      const loc = document.createElement('div');
+      loc.style.cssText = 'font-size:10px;opacity:.88';
+      loc.textContent = ev.location;
+      el.appendChild(loc);
+    }
+    col.appendChild(el);
+  });
+}
+
+function _updateScheduleSyncBar(container) {
+  const bar = container.querySelector('#schedule-sync-bar');
+  if (!bar) return;
+  const prefs = State.get().schedulePrefs || {};
+  const cache = scheduleSync.loadCache();
+  if (prefs.source === 'manual' && !cache.events?.length) {
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = 'flex';
+  const n = cache.events?.length ?? prefs.eventCount ?? 0;
+  const t = prefs.lastSyncedAt
+    ? new Date(prefs.lastSyncedAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+    : '—';
+  const err = prefs.lastError ? ' · <span style="color:var(--danger)">Fehler beim Sync</span>' : '';
+  const srcLabel = prefs.source === 'ics-file' ? 'Datei' : 'Live';
+  bar.innerHTML = `
+    <span class="sync-dot" aria-hidden="true"></span>
+    <span style="flex:1">${srcLabel} · ${n} Events · zuletzt ${t}${err}</span>
+    <button type="button" class="btn btn-ghost btn-sm" id="sched-view-refresh">Aktualisieren</button>`;
+  renderIcons(bar);
+
+  bar.querySelector('#sched-view-refresh')?.addEventListener('click', async () => {
+    const p2 = State.get().schedulePrefs || {};
+    if (p2.source === 'ics-url' && p2.icsUrl?.trim()) {
+      try {
+        const txt = await scheduleSync.fetchIcsText(p2.icsUrl.trim());
+        const evs = scheduleSync.parseIcsToEvents(txt, 'ics-url');
+        scheduleSync.saveCache(evs, new Date().toISOString());
+        State.patchSchedulePrefs({ lastSyncedAt: new Date().toISOString(), lastError: null, eventCount: evs.length });
+        Storage.saveNow(State.get());
+        Toast.success('Aktualisiert', `${evs.length} Termine`);
+      } catch {
+        State.patchSchedulePrefs({ lastError: 'SYNC' });
+        Storage.saveNow(State.get());
+        Toast.error('Sync fehlgeschlagen', 'CORS möglich — nutze Datei-Upload.');
+      }
+    } else {
+      Toast.info('Kein Live-Kalender', 'Bitte in den Einstellungen eine ICS-URL verbinden.');
+    }
+    renderSchedule(container);
   });
 }
 
@@ -197,6 +328,11 @@ function _bindEvents(container, weekDays, subjects) {
 
   /* Click on existing block */
   container.addEventListener('click', e => {
+    const icsEl = e.target.closest('.schedule-block.ics-sync');
+    if (icsEl?.dataset?.icsId) {
+      openIcsSubjectModal(icsEl.dataset.icsId, subjects, container);
+      return;
+    }
     const block = e.target.closest('.schedule-block');
     if (!block || e.target.closest('[data-role="resize"]')) return;
     const id = block.dataset.blockId;
@@ -249,6 +385,7 @@ function _bindEvents(container, weekDays, subjects) {
       }
     }
     _placeBlocks(container, weekDays);
+    _placeIcsEvents(container, weekDays);
   });
 
   document.addEventListener('mouseup', () => {
@@ -272,6 +409,39 @@ function _bindEvents(container, weekDays, subjects) {
       };
       openBlockModal(prefill, subjects, weekDays, container, true);
     });
+  });
+}
+
+function openIcsSubjectModal(icsId, subjects, container) {
+  const cache = scheduleSync.loadCache();
+  const ev = (cache.events || []).find(x => x.id === icsId);
+  if (!ev) return;
+  const overrides = scheduleSync.loadOverrides();
+  const inferred = scheduleSync.inferSubjectId(ev.title, ev.description);
+  const cur = overrides[icsId] || inferred || '';
+  const body = `
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">${ev.title}</p>
+    <div class="field">
+      <label for="ics-subject">Fach zuordnen</label>
+      <select class="select" id="ics-subject">
+        <option value="">Neutral (grau)</option>
+        ${subjects.map(s => `<option value="${s.id}"${cur === s.id ? ' selected' : ''}>${s.name}</option>`).join('')}
+      </select>
+    </div>`;
+  const modal = Modal.open({
+    title: 'Kalendereintrag',
+    body,
+    footer: `<button type="button" class="btn btn-ghost btn-sm" id="ics-cancel">Abbrechen</button>
+      <button type="button" class="btn btn-primary btn-sm" id="ics-save">Speichern</button>`
+  });
+  renderIcons(modal.el);
+  modal.el.querySelector('#ics-cancel')?.addEventListener('click', () => modal.close());
+  modal.el.querySelector('#ics-save')?.addEventListener('click', () => {
+    const v = modal.el.querySelector('#ics-subject')?.value || '';
+    scheduleSync.setEventSubjectOverride(icsId, v || null);
+    modal.close();
+    Toast.success('Zuordnung gespeichert');
+    renderSchedule(container);
   });
 }
 

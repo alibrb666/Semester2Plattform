@@ -51,12 +51,20 @@ export function renderSessions(container) {
     return groups;
   }
 
+  function sessionSecondsTotal(s) {
+    if (s.tasks?.length) {
+      const sumT = s.tasks.reduce((acc, t) => acc + (t.durationSeconds || 0), 0);
+      if (sumT > 0) return sumT;
+    }
+    return s.durationSeconds || 0;
+  }
+
   function taskSummary(s) {
-    if (!s.tasks?.length) return '';
-    const count = s.tasks.length;
-    const done  = s.tasks.filter(t => t.status === 'done').length;
-    if (count === 1 && s.tasks[0].title === 'Allgemein') return '';
-    return `${done}/${count} Tasks`;
+    const n = s.tasks?.length || 0;
+    const total = sessionSecondsTotal(s);
+    if (!n) return '';
+    if (n === 1 && s.tasks[0]?.title === 'Allgemein') return formatDuration(total);
+    return `${n} Task${n === 1 ? '' : 's'} · ${formatDuration(total)}`;
   }
 
   function renderList() {
@@ -85,21 +93,21 @@ export function renderSessions(container) {
         const tsum  = taskSummary(s);
         const demo  = s.isDemo ? '<span class="badge badge-warning" style="font-size:10px">Demo</span>' : '';
         html += `<div class="session-row" data-session-id="${s.id}" role="button" tabindex="0"
-            aria-label="${sub?.name} ${formatDuration(s.durationSeconds)}">
+            aria-label="${sub?.name} ${formatDuration(sessionSecondsTotal(s))}">
           <div class="session-row-bar" style="background:var(--subject-${s.subjectId})"></div>
           <div class="session-row-icon" style="background:var(--subject-${s.subjectId}22);color:var(--subject-${s.subjectId})">
             <i data-lucide="timer"></i>
           </div>
           <div class="session-row-info">
             <div class="session-row-subject">${sub?.name || s.subjectId} ${demo}</div>
-            <div class="session-row-note">${s.note || (tsum ? tsum : 'Keine Notiz')}</div>
+            <div class="session-row-note">${s.note || 'Keine Notiz'}</div>
           </div>
           <div class="session-row-tags">
             ${(s.tags || []).map(tag => `<span class="badge badge-muted">${tag}</span>`).join('')}
           </div>
           <div class="session-row-rating">${s.rating ? '★'.repeat(s.rating) : ''}</div>
           ${tsum ? `<div class="session-row-tasks">${tsum}</div>` : ''}
-          <div class="session-row-dur">${formatDuration(s.durationSeconds)}</div>
+          <div class="session-row-dur">${formatDuration(sessionSecondsTotal(s))}</div>
           <div class="session-row-date">${t}</div>
         </div>`;
       });
@@ -222,11 +230,13 @@ function _showDetailModal(s, sub, d, container, onRefresh) {
         </div>`;
     }
 
+    const durTotal = tasks.reduce((a, t) => a + (t.durationSeconds || 0), 0) || session.durationSeconds || 0;
+
     return `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
         <div class="card" style="text-align:center">
           <div class="stat-label">Dauer</div>
-          <div class="stat-value">${formatDuration(session.durationSeconds)}</div>
+          <div class="stat-value">${formatDuration(Math.round(durTotal))}</div>
         </div>
         <div class="card" style="text-align:center">
           <div class="stat-label">Bewertung</div>
@@ -250,10 +260,24 @@ function _showDetailModal(s, sub, d, container, onRefresh) {
         <div class="detail-task-list">
           ${tasks.map(t => {
             const done = t.status === 'done';
-            return `<div class="detail-task-row${done ? ' done' : ''}">
+            const segs = t.segments || [];
+            const segBlock = segs.length ? `<details class="task-seg-details">
+              <summary>Zeitverlauf (${segs.length})</summary>
+              <div class="task-seg-list">
+                ${segs.map(sg => `<div class="task-seg-row">
+                  <span>${formatDateShort(sg.startedAt)} ${new Date(sg.startedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span>→ ${new Date(sg.endedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span class="num-display">${formatDuration(Math.round(sg.seconds || 0))}</span>
+                </div>`).join('')}
+              </div>
+            </details>` : ''}
+            return `<div class="detail-task-wrap">
+            <div class="detail-task-row${done ? ' done' : ''}">
               <span class="detail-task-status">${done ? '✓' : '○'}</span>
               <span class="detail-task-title">${t.title}</span>
               <span class="detail-task-dur">${formatDuration(Math.round(t.durationSeconds || 0))}</span>
+            </div>
+            ${segBlock}
             </div>`;
           }).join('')}
         </div></div>` : ''}`;
@@ -367,12 +391,27 @@ function _showDetailModal(s, sub, d, container, onRefresh) {
 
     /* Collect task edits */
     const updatedTasks = (currentSession.tasks || []).map(t => {
+      const titleInp = modal.el.querySelector(`.task-title-input[data-task-id="${t.id}"]`);
+      const title = (titleInp?.value || '').trim() || t.title;
+      const h = Math.max(0, parseInt(modal.el.querySelector(`.task-hms[data-part="h"][data-task-id="${t.id}"]`)?.value || '0', 10) || 0);
+      const mi = Math.max(0, parseInt(modal.el.querySelector(`.task-hms[data-part="m"][data-task-id="${t.id}"]`)?.value || '0', 10) || 0);
+      const se = Math.max(0, parseInt(modal.el.querySelector(`.task-hms[data-part="s"][data-task-id="${t.id}"]`)?.value || '0', 10) || 0);
+      let secs = h * 3600 + Math.min(59, mi) * 60 + Math.min(59, se);
       const durInp = modal.el.querySelector(`.task-dur-input[data-task-id="${t.id}"]`);
-      const secs   = durInp ? parseDurationInput(durInp.value) : t.durationSeconds;
-      return { ...t, durationSeconds: secs >= 0 ? secs : t.durationSeconds };
+      if (durInp?.value?.trim()) {
+        const parsed = parseDurationInput(durInp.value);
+        if (parsed >= 0) secs = parsed;
+      }
+      return { ...t, title, durationSeconds: secs };
     });
 
     const totalDur = updatedTasks.reduce((s, t) => s + (t.durationSeconds || 0), 0);
+    const wallSec = currentSession.endedAt && currentSession.startedAt
+      ? Math.max(0, (new Date(currentSession.endedAt) - new Date(currentSession.startedAt)) / 1000)
+      : null;
+    if (wallSec != null && totalDur > wallSec + 120) {
+      Toast.warning('Zeit-Check', 'Die Task-Summe liegt über der Session-Zeitspanne — Speichern ist trotzdem möglich.');
+    }
 
     const patch = {
       subjectId: editSubjectId,
@@ -443,12 +482,23 @@ function _showDetailModal(s, sub, d, container, onRefresh) {
 
 function _buildEditableTask(task) {
   const durStr = _secsToDurStr(Math.round(task.durationSeconds || 0));
-  return `<div class="detail-task-row edit-task-row">
+  const ts = Math.round(task.durationSeconds || 0);
+  const h = Math.floor(ts / 3600);
+  const m = Math.floor((ts % 3600) / 60);
+  const s = ts % 60;
+  const safeTitle = String(task.title || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  return `<div class="detail-task-row edit-task-row" style="flex-wrap:wrap;gap:8px;align-items:center">
     <span class="detail-task-status">${task.status === 'done' ? '✓' : '○'}</span>
-    <span class="detail-task-title" style="flex:1">${task.title}</span>
-    <input class="input task-dur-input" data-task-id="${task.id}"
-      value="${durStr}" placeholder="0m"
-      style="width:80px;font-size:12px;padding:4px 8px;font-family:var(--font-mono)" />
+    <input class="input task-title-input" data-task-id="${task.id}" value="${safeTitle}" style="flex:1;min-width:140px" />
+    <div class="task-time-edit" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:12px;color:var(--text-tertiary)">
+      <input type="number" min="0" class="input task-hms" data-part="h" data-task-id="${task.id}" value="${h}" style="width:50px;padding:4px 6px" title="h"/>
+      <span>:</span>
+      <input type="number" min="0" max="59" class="input task-hms" data-part="m" data-task-id="${task.id}" value="${m}" style="width:50px;padding:4px 6px" title="m"/>
+      <span>:</span>
+      <input type="number" min="0" max="59" class="input task-hms" data-part="s" data-task-id="${task.id}" value="${s}" style="width:50px;padding:4px 6px" title="s"/>
+      <input class="input task-dur-input" data-task-id="${task.id}" value="${durStr}" placeholder="1h 5m"
+        style="width:88px;font-size:12px;padding:4px 8px;font-family:var(--font-mono)" />
+    </div>
   </div>`;
 }
 

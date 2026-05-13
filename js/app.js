@@ -37,7 +37,7 @@ function defaultScheduleBlocks() {
 }
 
 const DEFAULT_STATE = {
-  version: 1,
+  version: 2,
   settings: {
     name: 'Lukas', theme: 'dark', sidebarCollapsed: false,
     dailyGoalMinutes: 240,
@@ -55,7 +55,15 @@ const DEFAULT_STATE = {
   errorLog: [],
   mocks: [],
   weeklyReviews: [],
-  achievements: { longestStreak:0, totalHours:0 }
+  achievements: { longestStreak:0, totalHours:0 },
+  schedulePrefs: {
+    source: 'manual',
+    icsUrl: '',
+    icsFileName: null,
+    lastSyncedAt: null,
+    lastError: null,
+    eventCount: 0
+  }
 };
 
 function waitForGlobal(prop, ms = 3000) {
@@ -141,6 +149,29 @@ function launchApp() {
       if (root) renderDashboard(root);
     }
   });
+
+  maybeRefreshIcsSchedule();
+}
+
+async function maybeRefreshIcsSchedule() {
+  try {
+    const scheduleSync = await import('./scheduleSync.js');
+    const prefs = State.get().schedulePrefs;
+    if (!prefs || prefs.source !== 'ics-url' || !prefs.icsUrl?.trim()) return;
+    if (!scheduleSync.shouldAutoSync(prefs.lastSyncedAt)) return;
+    const txt = await scheduleSync.fetchIcsText(prefs.icsUrl.trim());
+    const evs = scheduleSync.parseIcsToEvents(txt, 'ics-url');
+    scheduleSync.saveCache(evs, new Date().toISOString());
+    State.patchSchedulePrefs({
+      lastSyncedAt: new Date().toISOString(),
+      lastError: null,
+      eventCount: evs.length
+    });
+    Storage.saveNow(State.get());
+  } catch {
+    State.patchSchedulePrefs({ lastError: 'SYNC' });
+    Storage.saveNow(State.get());
+  }
 }
 
 function initKeyboard() {

@@ -169,7 +169,13 @@ export function getSubjectSessions(sessions, subjectId) {
 }
 
 export function sumDuration(sessions) {
-  return sessions.reduce((t, s) => t + (s.durationSeconds || 0), 0);
+  return sessions.reduce((t, s) => {
+    if (s.tasks?.length) {
+      const fromTasks = s.tasks.reduce((a, x) => a + (x.durationSeconds || 0), 0);
+      if (fromTasks > 0) return t + fromTasks;
+    }
+    return t + (s.durationSeconds || 0);
+  }, 0);
 }
 
 export function cssVar(name) {

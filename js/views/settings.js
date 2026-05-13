@@ -4,6 +4,7 @@ import { Theme } from '../theme.js';
 import { renderIcons } from '../util.js';
 import { Toast } from '../components/toast.js';
 import { Modal } from '../components/modal.js';
+import * as scheduleSync from '../scheduleSync.js';
 
 export function renderSettings(container) {
   const settings = State.getSettings();
@@ -68,6 +69,43 @@ export function renderSettings(container) {
                 <span class="goal-slider-val" id="goal-val-${s.id}">${goalH}h</span>
               </div>`;
             }).join('')}
+          </div>
+        </section>
+
+        <!-- Stundenplan-Quelle -->
+        <section class="settings-section" id="settings-schedule-section">
+          <div class="settings-section-title">Stundenplan-Quelle</div>
+          <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:12px">
+            <div class="schedule-source-row">
+              <label class="radio-line"><input type="radio" name="sched-src" value="manual" ${(State.get().schedulePrefs?.source||'manual')==='manual'?'checked':''} /> Manuell (Vorlagen wie bisher)</label>
+              <label class="radio-line"><input type="radio" name="sched-src" value="ics-url" ${State.get().schedulePrefs?.source==='ics-url'?'checked':''} /> ICS-URL (Live-Sync)</label>
+              <label class="radio-line"><input type="radio" name="sched-src" value="ics-file" ${State.get().schedulePrefs?.source==='ics-file'?'checked':''} /> ICS-Datei (Upload, nicht live)</label>
+            </div>
+            <div id="sched-panel-url" style="display:none">
+              <div class="field" style="margin:0">
+                <label for="sched-ics-url">ICS-URL deines Kalenders</label>
+                <input class="input" id="sched-ics-url" type="url" placeholder="https://calendar.google.com/calendar/ical/…" value="" />
+              </div>
+              <details class="sched-help-acc" style="margin-top:8px">
+                <summary style="cursor:pointer;font-size:13px;color:var(--text-secondary)">Wie bekomme ich die URL?</summary>
+                <div style="font-size:12px;color:var(--text-tertiary);margin-top:8px;line-height:1.55">
+                  <p><strong>Google Calendar:</strong> Kalendereinstellungen → „Privatadresse im iCal-Format“ kopieren (nicht die öffentliche Adresse).</p>
+                  <p><strong>DHBW Rapla:</strong> In der Wochenansicht eine .ics-URL verwenden oder „Kalender abonnieren“ / Rechtsklick → Link der Abonnement-URL.</p>
+                </div>
+              </details>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+                <button type="button" class="btn btn-primary btn-sm" id="sched-btn-sync">Verbinden &amp; jetzt synchronisieren</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="sched-btn-disconnect">Verbindung trennen</button>
+              </div>
+            </div>
+            <div id="sched-panel-file" style="display:none">
+              <div class="field" style="margin:0">
+                <label for="sched-ics-file">.ics-Datei</label>
+                <input class="input" id="sched-ics-file" type="file" accept=".ics,text/calendar" />
+              </div>
+              <p style="font-size:12px;color:var(--text-tertiary);margin:8px 0 0">Nicht live — du musst die Datei bei Änderungen erneut hochladen.</p>
+            </div>
+            <div id="sched-status" class="sched-status-line" style="font-size:12px;color:var(--text-secondary)"></div>
           </div>
         </section>
 
@@ -281,10 +319,125 @@ function _bindSettings(container, subjects) {
       location.reload();
     });
   });
+
+  /* Stundenplan / ICS */
+  const urlInp = container.querySelector('#sched-ics-url');
+  if (urlInp) urlInp.value = State.get().schedulePrefs?.icsUrl || '';
+
+  function updateSchedStatus() {
+    const el = container.querySelector('#sched-status');
+    if (!el) return;
+    const sp = State.get().schedulePrefs || {};
+    const cache = scheduleSync.loadCache();
+    if (sp.source === 'manual') {
+      el.textContent = 'Manueller Stundenplan (Vorlagen im Kalender).';
+      return;
+    }
+    if (sp.lastError) {
+      el.innerHTML = '<span style="color:var(--danger)">Letzter Sync fehlgeschlagen (oft CORS). Bitte .ics-Datei hochladen.</span>';
+      return;
+    }
+    const n = cache.events?.length ?? sp.eventCount ?? 0;
+    const t = sp.lastSyncedAt
+      ? new Date(sp.lastSyncedAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+      : '—';
+    el.textContent = `Zuletzt synchronisiert: ${t} · ${n} Termine`;
+  }
+
+  function refreshSchedulePanels() {
+    const sp = State.get().schedulePrefs || {};
+    const src = sp.source || 'manual';
+    container.querySelectorAll('input[name="sched-src"]').forEach(r => { r.checked = r.value === src; });
+    const pUrl = container.querySelector('#sched-panel-url');
+    const pFile = container.querySelector('#sched-panel-file');
+    if (pUrl) pUrl.style.display = src === 'ics-url' ? 'block' : 'none';
+    if (pFile) pFile.style.display = src === 'ics-file' ? 'block' : 'none';
+    updateSchedStatus();
+  }
+
+  container.querySelectorAll('input[name="sched-src"]').forEach(r => {
+    r.addEventListener('change', () => {
+      State.patchSchedulePrefs({ source: r.value });
+      refreshSchedulePanels();
+    });
+  });
+
+  container.querySelector('#sched-btn-sync')?.addEventListener('click', async () => {
+    const url = container.querySelector('#sched-ics-url')?.value?.trim() || '';
+    if (!url) { Toast.warning('URL fehlt', 'Bitte eine ICS-URL eintragen.'); return; }
+    try {
+      const txt = await scheduleSync.fetchIcsText(url);
+      const events = scheduleSync.parseIcsToEvents(txt, 'ics-url');
+      scheduleSync.saveCache(events, new Date().toISOString());
+      State.patchSchedulePrefs({
+        source: 'ics-url',
+        icsUrl: url,
+        lastSyncedAt: new Date().toISOString(),
+        lastError: null,
+        eventCount: events.length
+      });
+      Storage.saveNow(State.get());
+      Toast.success('Kalender synchronisiert', `${events.length} Termine`);
+      updateSchedStatus();
+    } catch {
+      State.patchSchedulePrefs({ lastError: 'SYNC', icsUrl: url });
+      Storage.saveNow(State.get());
+      Toast.error('Sync fehlgeschlagen', 'CORS möglich — nutze ICS-Datei-Upload.');
+      updateSchedStatus();
+    }
+  });
+
+  container.querySelector('#sched-btn-disconnect')?.addEventListener('click', () => {
+    scheduleSync.saveCache([], null);
+    State.patchSchedulePrefs({
+      source: 'manual',
+      icsUrl: '',
+      icsFileName: null,
+      lastSyncedAt: null,
+      lastError: null,
+      eventCount: 0
+    });
+    Storage.saveNow(State.get());
+    if (urlInp) urlInp.value = '';
+    container.querySelectorAll('input[name="sched-src"]').forEach(r => { r.checked = r.value === 'manual'; });
+    refreshSchedulePanels();
+    Toast.success('Kalender-Verbindung getrennt');
+  });
+
+  container.querySelector('#sched-ics-file')?.addEventListener('change', async e => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const txt = await file.text();
+      const events = scheduleSync.parseIcsToEvents(txt, 'ics-file');
+      scheduleSync.saveCache(events, new Date().toISOString());
+      State.patchSchedulePrefs({
+        source: 'ics-file',
+        icsFileName: file.name,
+        lastSyncedAt: new Date().toISOString(),
+        lastError: null,
+        eventCount: events.length
+      });
+      Storage.saveNow(State.get());
+      Toast.success('ICS eingelesen', `${events.length} Termine`);
+      refreshSchedulePanels();
+    } catch (err) {
+      Toast.error('ICS ungültig', err.message || String(err));
+    }
+    e.target.value = '';
+  });
+
+  refreshSchedulePanels();
 }
 
 function exportData() {
-  const data = State.get();
+  const data = {
+    ...State.get(),
+    _exportMeta: {
+      scheduleCache: scheduleSync.loadCache(),
+      eventSubjectMap: scheduleSync.loadOverrides()
+    }
+  };
   const json = JSON.stringify(data, null, 2);
   const blob = new Blob([json], { type:'application/json' });
   const url  = URL.createObjectURL(blob);

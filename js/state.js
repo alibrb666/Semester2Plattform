@@ -81,6 +81,23 @@ export const State = {
     this.set({ achievements: { ...this.getAchievements(), ...patch } });
   },
 
+  patchSchedulePrefs(patch) {
+    const st = this.get();
+    this.set({
+      ...st,
+      schedulePrefs: {
+        source: 'manual',
+        icsUrl: '',
+        icsFileName: null,
+        lastSyncedAt: null,
+        lastError: null,
+        eventCount: 0,
+        ...(st.schedulePrefs || {}),
+        ...patch
+      }
+    });
+  },
+
   removeDemoEntries() {
     this.set({
       sessions: this.getSessions().filter(s => !s.isDemo),
