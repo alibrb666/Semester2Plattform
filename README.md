@@ -95,23 +95,30 @@ Niemals Hex-Werte direkt im CSS — immer über Tokens wie `var(--accent)`.
 
 **Fach-Farben:** `--subject-klr` (Emerald) · `--subject-math` (Violet) · `--subject-prog` (Cyan) · `--subject-kbs` (Amber)
 
-### Daten-Schema
+### Daten-Schema (v2)
 
 ```js
 {
-  version: 1,
-  settings: { name, theme, sidebarCollapsed, dailyGoalMinutes, weeklyGoals, soundEnabled, notificationsEnabled },
+  version: 2,
+  schedulePrefs: { source: 'manual'|'ics-url'|'ics-file', icsUrl, icsFileName, lastSyncedAt, lastError, eventCount },
+  settings: { … },
   subjects: [{ id, name, color, examDate }],
-  sessions: [{ id, subjectId, startedAt, endedAt, durationSeconds, note, tags, rating }],
-  scheduleBlocks: [{ id, subjectId, day|date, startTime, endTime, type, locked, label }],
-  errorLog: [{ id, subjectId, createdAt, topic, category, description, resolution, reviewedAt[], repeated }],
-  mocks: [{ id, subjectId, date, score, maxScore, note }],
-  weeklyReviews: [{ id, date, good, gap }],
-  achievements: { longestStreak, totalHours }
+  sessions: [{
+    id, subjectId, startedAt, endedAt, durationSeconds, note, tags, rating, isDemo?,
+    tasks: [{ id, title, status, durationSeconds, activeStartedAt, segments[], createdAt, completedAt, note }]
+  }],
+  scheduleBlocks: […],
+  …
 }
 ```
 
-Storage-Key: `learn.v1` · Throttled writes (max alle 500ms) · QuotaError-Handling
+Zusätzlich (nicht im Haupt-JSON): `localStorage['learn.v1.scheduleCache']` (ICS-Termine), `localStorage['learn.v1.eventSubjectMap']` (UID → `subjectId`).
+
+### Stundenplan / ICS
+
+- Quelle wählbar unter **Einstellungen → Stundenplan-Quelle** (manuell, ICS-URL mit Live-Sync inkl. CORS-Proxy-Fallback, oder ICS-Datei-Upload).
+- Parser: **ical.js** (CDN). Nach Sync werden Termine in der Wochenansicht als **read-only** Blöcke dargestellt; Klick öffnet **Fach zuordnen** (Override in `eventSubjectMap`).
+- Auto-Refresh der URL beim App-Start, wenn die letzte Synchronisation älter als 6 h ist.
 
 ### Event-Handling-Architektur
 
