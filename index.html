@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>1.0 — Lernplattform</title>
+    <meta name="description" content="Persönliche Lernplattform für die Klausurvorbereitung." />
+    <meta name="theme-color" content="#08090A" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%238B5CF6'/%3E%3Ctext x='50%25' y='54%25' font-family='Inter,sans-serif' font-size='34' font-weight='700' fill='white' text-anchor='middle' dominant-baseline='middle'%3E1%3C/text%3E%3C/svg%3E" />
+
+    <script>
+      // Theme bootstrap — runs BEFORE paint to prevent flash.
+      (function () {
+        try {
+          const raw = localStorage.getItem("learn.v1");
+          const stored = raw ? JSON.parse(raw) : null;
+          const theme = stored?.settings?.theme || "dark";
+          document.documentElement.setAttribute("data-theme", theme);
+          const collapsed = !!stored?.settings?.sidebarCollapsed;
+          if (collapsed) document.documentElement.dataset.sidebar = "collapsed";
+        } catch (_) {}
+      })();
+    </script>
+
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+      crossorigin
+    />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app-shell" aria-busy="true">
+      <header class="topbar" role="banner">
+        <div class="topbar-left">
+          <button
+            class="icon-btn topbar-menu"
+            data-action="toggle-sidebar"
+            aria-label="Sidebar umschalten"
+            data-tooltip="Sidebar"
+          >
+            <i data-lucide="panel-left"></i>
+          </button>
+          <div class="brand-mini" aria-hidden="true">
+            <span class="brand-mark">1.0</span>
+          </div>
+        </div>
+
+        <div class="topbar-countdowns" id="topbar-countdowns" aria-label="Klausur-Countdowns"></div>
+
+        <div class="topbar-right">
+          <button
+            class="icon-btn"
+            data-action="open-palette"
+            aria-label="Befehle (Cmd/Ctrl + K)"
+            data-tooltip="Befehle ⌘K"
+          >
+            <i data-lucide="search"></i>
+          </button>
+          <button
+            class="icon-btn"
+            data-action="toggle-theme"
+            aria-label="Theme umschalten (T)"
+            data-tooltip="Theme"
+          >
+            <i data-lucide="sun-moon"></i>
+          </button>
+          <button
+            class="icon-btn"
+            data-action="open-shortcuts"
+            aria-label="Tastatur-Shortcuts (?)"
+            data-tooltip="Shortcuts"
+          >
+            <i data-lucide="keyboard"></i>
+          </button>
+        </div>
+      </header>
+
+      <aside class="sidebar" role="navigation" aria-label="Hauptnavigation">
+        <a class="sidebar-brand" href="#dashboard" data-route="dashboard">
+          <span class="brand-dot" aria-hidden="true"></span>
+          <span class="brand-name">Lernplattform</span>
+          <span class="brand-sub">v1.0</span>
+        </a>
+
+        <nav class="sidebar-nav" id="sidebar-nav">
+          <a class="nav-item" data-route="dashboard" href="#dashboard">
+            <i data-lucide="layout-dashboard"></i><span>Dashboard</span>
+            <kbd>1</kbd>
+          </a>
+          <a class="nav-item" data-route="schedule" href="#schedule">
+            <i data-lucide="calendar-days"></i><span>Stundenplan</span>
+            <kbd>2</kbd>
+          </a>
+          <a class="nav-item" data-route="sessions" href="#sessions">
+            <i data-lucide="timer"></i><span>Sessions</span>
+            <kbd>3</kbd>
+          </a>
+          <a class="nav-item" data-route="statistics" href="#statistics">
+            <i data-lucide="line-chart"></i><span>Statistik</span>
+            <kbd>4</kbd>
+          </a>
+          <a class="nav-item" data-route="errors" href="#errors">
+            <i data-lucide="book-open"></i><span>Fehlerbuch</span>
+            <kbd>5</kbd>
+          </a>
+          <a class="nav-item" data-route="mocks" href="#mocks">
+            <i data-lucide="file-check-2"></i><span>Probeklausuren</span>
+            <kbd>6</kbd>
+          </a>
+          <a class="nav-item" data-route="settings" href="#settings">
+            <i data-lucide="settings"></i><span>Einstellungen</span>
+            <kbd>7</kbd>
+          </a>
+        </nav>
+
+        <div class="sidebar-foot">
+          <div class="phase-pill" id="phase-pill" data-tooltip="Aktuelle Phase">
+            <span class="phase-dot"></span>
+            <span class="phase-label">Phase 1</span>
+          </div>
+          <div class="sidebar-foot-meta">
+            <span id="sidebar-streak" class="streak-mini">🔥 0</span>
+            <span class="sep">·</span>
+            <span id="sidebar-today" class="today-mini">0h</span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main" id="main" role="main" tabindex="-1">
+        <div class="view" id="view-root"></div>
+      </main>
+
+      <!-- Mobile bottom tab bar -->
+      <nav class="mobile-tabs" id="mobile-tabs" aria-label="Mobile Navigation">
+        <a class="tab" data-route="dashboard" href="#dashboard">
+          <i data-lucide="layout-dashboard"></i><span>Heute</span>
+        </a>
+        <a class="tab" data-route="schedule" href="#schedule">
+          <i data-lucide="calendar-days"></i><span>Plan</span>
+        </a>
+        <a class="tab" data-route="sessions" href="#sessions">
+          <i data-lucide="timer"></i><span>Sessions</span>
+        </a>
+        <a class="tab" data-route="statistics" href="#statistics">
+          <i data-lucide="line-chart"></i><span>Stats</span>
+        </a>
+        <a class="tab" data-route="errors" href="#errors">
+          <i data-lucide="book-open"></i><span>Fehler</span>
+        </a>
+      </nav>
+
+      <!-- Floating Session Widget -->
+      <div
+        class="session-widget"
+        id="session-widget"
+        data-state="idle"
+        role="region"
+        aria-label="Session Tracker"
+      ></div>
+
+      <!-- Quick Capture FAB -->
+      <button
+        class="fab"
+        id="fab-quick-capture"
+        data-action="quick-capture"
+        aria-label="Schnell erfassen (N)"
+        data-tooltip="Erfassen (N)"
+      >
+        <i data-lucide="plus"></i>
+      </button>
+
+      <!-- Toast container -->
+      <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
+
+      <!-- Modal root -->
+      <div class="modal-root" id="modal-root"></div>
+
+      <!-- Confetti canvas -->
+      <canvas id="confetti" class="confetti" aria-hidden="true"></canvas>
+    </div>
+
+    <!-- Welcome screen (first run) -->
+    <div class="welcome" id="welcome" hidden>
+      <div class="welcome-card">
+        <div class="welcome-mark">1.0</div>
+        <h1>Willkommen.</h1>
+        <p>
+          Deine persönliche Lernplattform für die vier Klausuren im Juli 2026.
+          Wähle, wie du startest – du kannst alle Daten jederzeit exportieren oder löschen.
+        </p>
+        <div class="welcome-actions">
+          <button class="btn btn-primary" data-welcome="demo">Mit Demo-Daten starten</button>
+          <button class="btn btn-ghost" data-welcome="empty">Leer starten</button>
+        </div>
+        <div class="welcome-foot">Daten bleiben lokal in deinem Browser.</div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@0.453.0/dist/umd/lucide.min.js" defer></script>
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>
