@@ -6,6 +6,7 @@ import { SessionTracker } from '../components/sessionTracker.js';
 import { renderHeatmap } from '../components/heatmap.js';
 import { Modal } from '../components/modal.js';
 import { Toast } from '../components/toast.js';
+import { Storage } from '../storage.js';
 
 export function renderDashboard(container) {
   const state    = State.get();
@@ -36,8 +37,15 @@ export function renderDashboard(container) {
   const isSunday = new Date().getDay() === 0;
   const hasReviewToday = State.getReviews().some(r => isSameDay(new Date(r.date), new Date()));
 
+  const showDemoBanner = State.hasDemoEntries();
+
   container.innerHTML = `
     <div class="dashboard-view view">
+      ${showDemoBanner ? `
+      <div class="demo-mode-banner" id="demo-mode-banner" role="status">
+        <span>Du nutzt gerade die Demo-Ansicht.</span>
+        <button type="button" class="btn btn-secondary btn-sm" id="demo-banner-clear">Demo-Daten löschen</button>
+      </div>` : ''}
       ${isSunday && !hasReviewToday ? `
       <div class="review-banner" id="review-banner">
         <div>
@@ -164,6 +172,14 @@ export function renderDashboard(container) {
     </div>`;
 
   renderIcons(container);
+
+  container.querySelector('#demo-banner-clear')?.addEventListener('click', () => {
+    if (!State.hasDemoEntries()) return;
+    State.removeDemoEntries();
+    Storage.saveNow(State.get());
+    Toast.success('Demo-Daten entfernt');
+    renderDashboard(container);
+  });
 
   /* Progress ring animation */
   const pct = Math.min(1, todaySec / goal);

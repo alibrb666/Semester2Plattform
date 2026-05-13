@@ -96,6 +96,18 @@ export function renderSettings(container) {
           </div>
         </section>
 
+        <!-- Demo-Daten -->
+        <section class="settings-section" id="settings-demo-section">
+          <div class="settings-section-title">Demo-Ansicht</div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Demo-Daten löschen</div>
+              <div class="settings-row-sub">Entfernt nur als Demo markierte Sessions, Fehler und Mocks. Eigene Einträge bleiben erhalten.</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-demo-clear" type="button">Demo-Daten löschen</button>
+          </div>
+        </section>
+
         <!-- Export / Import -->
         <section class="settings-section">
           <div class="settings-section-title">Daten</div>
@@ -119,9 +131,9 @@ export function renderSettings(container) {
           <div class="danger-zone">
             <div>
               <div class="danger-title">Alle Daten zurücksetzen</div>
-              <div class="danger-sub">Sessions, Fehlerbuch, Mocks und alle anderen Daten werden unwiderruflich gelöscht.</div>
+              <div class="danger-sub">Sessions, Fehlerbuch, Mocks, Stundenplan-Anpassungen und alle Einstellungen werden gelöscht. Der Willkommensbildschirm erscheint wieder.</div>
             </div>
-            <button class="btn btn-danger btn-sm" id="btn-reset">Zurücksetzen</button>
+            <button class="btn btn-danger btn-sm" id="btn-reset" type="button">Alle Daten zurücksetzen</button>
           </div>
         </section>
 
@@ -196,6 +208,30 @@ function _bindSettings(container, subjects) {
     }
   });
 
+  /* Demo löschen */
+  container.querySelector('#btn-demo-clear')?.addEventListener('click', () => {
+    if (!State.hasDemoEntries()) {
+      Toast.info('Keine Demo-Daten', 'Es sind keine Demo-Einträge vorhanden.');
+      return;
+    }
+    const modal = Modal.open({
+      title: 'Demo-Daten löschen?',
+      size: 'sm',
+      body: '<p style="color:var(--text-secondary);font-size:14px">Alle als Demo markierten Sessions, Fehlerbuch-Einträge und Mocks werden entfernt. Deine eigenen Daten bleiben erhalten.</p>',
+      footer: `<button class="btn btn-ghost" id="demo-clear-cancel" type="button">Abbrechen</button>
+               <button class="btn btn-danger" id="demo-clear-confirm" type="button">Demo löschen</button>`
+    });
+    renderIcons(modal.el);
+    modal.el.querySelector('#demo-clear-cancel')?.addEventListener('click', () => modal.close());
+    modal.el.querySelector('#demo-clear-confirm')?.addEventListener('click', () => {
+      State.removeDemoEntries();
+      modal.close();
+      Toast.success('Demo-Daten entfernt');
+      Storage.saveNow(State.get());
+      renderSettings(container);
+    });
+  });
+
   /* Export */
   container.querySelector('#btn-export')?.addEventListener('click', exportData);
 
@@ -221,12 +257,21 @@ function _bindSettings(container, subjects) {
 
   /* Reset */
   container.querySelector('#btn-reset')?.addEventListener('click', () => {
+    const nSess = State.getSessions().length;
+    const nErr  = State.getErrors().length;
+    const nMock = State.getMocks().length;
     const modal = Modal.open({
-      title: 'Alle Daten löschen?',
+      title: 'Alle Daten zurücksetzen?',
       size: 'sm',
-      body: '<p style="color:var(--text-secondary);font-size:14px">Diese Aktion kann nicht rückgängig gemacht werden. Alle Sessions, Fehler, Mocks und Einstellungen werden gelöscht.</p>',
-      footer: `<button class="btn btn-ghost" id="reset-cancel">Abbrechen</button>
-               <button class="btn btn-danger" id="reset-confirm">Alles löschen</button>`
+      body: `<p style="color:var(--text-secondary);font-size:14px;line-height:1.55">Wirklich? Es gehen verloren:</p>
+        <ul style="margin:8px 0 0 18px;color:var(--text-secondary);font-size:14px;line-height:1.6">
+          <li><strong>${nSess}</strong> Session${nSess === 1 ? '' : 's'}</li>
+          <li><strong>${nErr}</strong> Fehlerbuch-Eintrag${nErr === 1 ? '' : 'e'}</li>
+          <li><strong>${nMock}</strong> Mock${nMock === 1 ? '' : 's'}</li>
+        </ul>
+        <p style="color:var(--text-secondary);font-size:14px;margin-top:12px">Danach erscheint der Willkommensbildschirm wieder.</p>`,
+      footer: `<button class="btn btn-ghost" id="reset-cancel" type="button">Abbrechen</button>
+               <button class="btn btn-danger" id="reset-confirm" type="button">Alles löschen</button>`
     });
     renderIcons(modal.el);
     modal.el.querySelector('#reset-cancel')?.addEventListener('click', () => modal.close());

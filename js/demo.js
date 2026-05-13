@@ -27,15 +27,28 @@ export function generateDemoData(baseState) {
       const startDate = new Date(date);
       startDate.setHours(hour, Math.floor(Math.random() * 4) * 15, 0, 0);
       const endDate = new Date(startDate.getTime() + dur * 1000);
+      const noteText = notes[subj][Math.floor(Math.random() * notes[subj].length)];
       sessions.push({
         id: uuid(),
         subjectId: subj,
         startedAt: startDate.toISOString(),
         endedAt: endDate.toISOString(),
         durationSeconds: dur,
-        note: notes[subj][Math.floor(Math.random() * notes[subj].length)],
+        note: noteText,
         tags: tags[Math.floor(Math.random() * tags.length)],
-        rating: Math.floor(Math.random() * 2) + 3
+        rating: Math.floor(Math.random() * 2) + 3,
+        isDemo: true,
+        tasks: [{
+          id: uuid(),
+          title: noteText.slice(0, 80) || 'Allgemein',
+          status: 'done',
+          durationSeconds: dur,
+          activeStartedAt: null,
+          segments: [{ startedAt: startDate.toISOString(), endedAt: endDate.toISOString(), seconds: dur }],
+          createdAt: startDate.toISOString(),
+          completedAt: endDate.toISOString(),
+          note: ''
+        }]
       });
     }
   }
@@ -52,7 +65,7 @@ export function generateDemoData(baseState) {
   errorData.forEach((e, i) => {
     const created = addDays(base, i * 2);
     const reviewed = i < 2 ? [addDays(created, 1).toISOString()] : [];
-    errorLog.push({ id: uuid(), ...e, createdAt: created.toISOString(), reviewedAt: reviewed, repeated: i === 2 ? 1 : 0 });
+    errorLog.push({ id: uuid(), ...e, createdAt: created.toISOString(), reviewedAt: reviewed, repeated: i === 2 ? 1 : 0, isDemo: true });
   });
 
   ['klr','math','prog','kbs'].forEach(subj => {
@@ -66,7 +79,8 @@ export function generateDemoData(baseState) {
         id: uuid(), subjectId: subj,
         date: date.toISOString(),
         score, maxScore,
-        note: i === 0 ? 'Erste Proberunde – Zeitmanagement noch schwierig' : 'Deutlich besser, Rechenaufgaben sicher'
+        note: i === 0 ? 'Erste Proberunde – Zeitmanagement noch schwierig' : 'Deutlich besser, Rechenaufgaben sicher',
+        isDemo: true
       });
     }
   });

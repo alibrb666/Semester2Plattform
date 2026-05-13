@@ -79,5 +79,19 @@ export const State = {
   },
   updateAchievements(patch) {
     this.set({ achievements: { ...this.getAchievements(), ...patch } });
+  },
+
+  removeDemoEntries() {
+    this.set({
+      sessions: this.getSessions().filter(s => !s.isDemo),
+      errorLog: this.getErrors().filter(e => !e.isDemo),
+      mocks: this.getMocks().filter(m => !m.isDemo)
+    });
+  },
+
+  hasDemoEntries() {
+    return this.getSessions().some(s => s.isDemo)
+      || this.getErrors().some(e => e.isDemo)
+      || this.getMocks().some(m => m.isDemo);
   }
 };
