@@ -102,23 +102,9 @@ const DEFAULT_STATE = {
   }
 };
 
-function waitForGlobal(prop, ms = 3000) {
-  return new Promise(resolve => {
-    const t0 = Date.now();
-    const tick = () => {
-      if (window[prop]) { resolve(); return; }
-      if (Date.now() - t0 >= ms) { resolve(); return; }
-      requestAnimationFrame(tick);
-    };
-    tick();
-  });
-}
-
 /* ── Boot ───────────────────────────────────────────────────── */
 async function boot() {
   try {
-    await Promise.all([waitForLucide(5000), waitForGlobal('Chart', 3000)]);
-
     const stored = Storage.load();
     if (!stored) {
       State.init(JSON.parse(JSON.stringify(DEFAULT_STATE)));
@@ -128,6 +114,17 @@ async function boot() {
       State.init(stored);
       launchApp();
     }
+
+    /* Lucide loads after the module (see index.html); refresh icons when it appears. */
+    void waitForLucide(15000).then(() => {
+      const vr = document.getElementById('view-root');
+      if (vr) renderIcons(vr);
+      renderIcons(document.getElementById('sidebar-nav'));
+      renderIcons(document.getElementById('mobile-tabs'));
+      renderIcons(document.getElementById('session-widget'));
+      const w = document.getElementById('welcome');
+      if (w && !w.hidden) renderIcons(w);
+    });
   } catch (e) {
     console.error('[boot]', e);
     document.getElementById('app')?.removeAttribute('aria-busy');
@@ -314,7 +311,7 @@ function showShortcuts() {
 function showWelcome() {
   const welcome = document.getElementById('welcome');
   if (!welcome) return;
-  welcome.hidden = false;
+  welcome.removeAttribute('hidden');
 
   renderIcons(welcome);
 
@@ -322,7 +319,7 @@ function showWelcome() {
     const demoData = generateDemoData(JSON.parse(JSON.stringify(DEFAULT_STATE)));
     State.init(demoData);
     Storage.saveNow(demoData);
-    welcome.hidden = true;
+    welcome.setAttribute('hidden', '');
     refreshCurrentView();
   });
 
@@ -330,7 +327,7 @@ function showWelcome() {
     const fresh = JSON.parse(JSON.stringify(DEFAULT_STATE));
     State.init(fresh);
     Storage.saveNow(fresh);
-    welcome.hidden = true;
+    welcome.setAttribute('hidden', '');
     refreshCurrentView();
   });
 }

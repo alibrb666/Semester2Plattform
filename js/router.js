@@ -53,6 +53,12 @@ export const Router = {
           </p>
         </div>`;
       }
+    } else {
+      console.error('[Router] missing render for route:', name, 'registered:', Object.keys(_routes));
+      view.innerHTML = `<div class="view" style="padding:24px;max-width:560px">
+        <div class="view-title" style="color:var(--danger)">Interner Router-Fehler</div>
+        <p style="color:var(--text-secondary);font-size:14px;margin-top:12px">Keine Render-Funktion für „${name}“.</p>
+      </div>`;
     }
     _listeners.forEach(fn => fn(name));
   },
