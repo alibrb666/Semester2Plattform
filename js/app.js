@@ -21,6 +21,42 @@ import { renderSettings }  from './views/settings.js';
 import { generateDemoData } from './demo.js';
 import { renderIcons } from './util.js';
 
+let _launchAppStarted = false;
+let _routerVisualListener = false;
+let _shortcutsDocBound = false;
+let _sessionSavedDocBound = false;
+let _actionDelegationBound = false;
+
+function refreshCurrentView() {
+  const route = Router.current() || 'dashboard';
+  const view = document.getElementById('view-root');
+  if (!view) return;
+  const renders = {
+    dashboard: renderDashboard,
+    schedule: renderSchedule,
+    sessions: renderSessions,
+    statistics: renderStatistics,
+    errors: renderErrors,
+    mocks: renderMocks,
+    settings: renderSettings
+  };
+  const fn = renders[route] || renderDashboard;
+  try {
+    view.innerHTML = '';
+    fn(view);
+    renderIcons(view);
+  } catch (e) {
+    console.error('[refreshCurrentView]', route, e);
+    view.innerHTML = `<div class="view" style="padding:24px;max-width:520px">
+      <div style="color:var(--danger);font-weight:600">Ansicht „${route}“ fehlgeschlagen</div>
+      <p style="color:var(--text-secondary);font-size:14px;margin-top:12px">${String(e?.message || e)}</p>
+    </div>`;
+  }
+  renderIcons(document.getElementById('sidebar-nav'));
+  renderIcons(document.getElementById('mobile-tabs'));
+  renderIcons(document.getElementById('session-widget'));
+}
+
 /* ── Default state ─────────────────────────────────────────── */
 function defaultScheduleBlocks() {
   const mk = (id, subjectId, day, s, e, label) =>
@@ -80,14 +116,32 @@ function waitForGlobal(prop, ms = 3000) {
 
 /* ── Boot ───────────────────────────────────────────────────── */
 async function boot() {
-  await Promise.all([waitForLucide(5000), waitForGlobal('Chart', 3000)]);
+  try {
+    await Promise.all([waitForLucide(5000), waitForGlobal('Chart', 3000)]);
 
-  const stored = Storage.load();
-  if (!stored) {
-    showWelcome();
-  } else {
-    State.init(stored);
-    launchApp();
+    const stored = Storage.load();
+    if (!stored) {
+      State.init(JSON.parse(JSON.stringify(DEFAULT_STATE)));
+      launchApp();
+      showWelcome();
+    } else {
+      State.init(stored);
+      launchApp();
+    }
+  } catch (e) {
+    console.error('[boot]', e);
+    document.getElementById('app')?.removeAttribute('aria-busy');
+    const root = document.getElementById('view-root');
+    if (root) {
+      root.innerHTML = `<div class="view" style="padding:24px;max-width:560px">
+        <div class="view-title" style="color:var(--danger)">Start fehlgeschlagen</div>
+        <p style="color:var(--text-secondary);font-size:14px;margin-top:12px;line-height:1.5">${String(e?.message || e)}</p>
+        <p style="color:var(--text-tertiary);font-size:13px;margin-top:16px">
+          Safari: <strong>Entwickler → JavaScript-Konsole anzeigen</strong>, dann <strong>⌘R</strong>.
+          Live Server muss den Ordner mit <code>index.html</code> als Root öffnen.
+        </p>
+      </div>`;
+    }
   }
 }
 
@@ -102,6 +156,9 @@ function waitForLucide(ms = 5000) {
 }
 
 function launchApp() {
+  if (_launchAppStarted) return;
+  _launchAppStarted = true;
+
   const app = document.getElementById('app');
   app?.removeAttribute('aria-busy');
 
@@ -128,27 +185,36 @@ function launchApp() {
   initKeyboard();
   initActionDelegation();
 
-  document.addEventListener('app:shortcuts', () => showShortcuts());
+  if (!_shortcutsDocBound) {
+    _shortcutsDocBound = true;
+    document.addEventListener('app:shortcuts', () => showShortcuts());
+  }
 
   /* Start router (triggers first render) */
   Router.init();
 
-  Router.onChange(() => {
-    const vr = document.getElementById('view-root');
-    if (vr) renderIcons(vr);
-    renderIcons(document.getElementById('sidebar-nav'));
-    renderIcons(document.getElementById('mobile-tabs'));
-    renderIcons(document.getElementById('session-widget'));
-  });
+  if (!_routerVisualListener) {
+    _routerVisualListener = true;
+    Router.onChange(() => {
+      const vr = document.getElementById('view-root');
+      if (vr) renderIcons(vr);
+      renderIcons(document.getElementById('sidebar-nav'));
+      renderIcons(document.getElementById('mobile-tabs'));
+      renderIcons(document.getElementById('session-widget'));
+    });
+  }
 
   /* Render after session saved */
-  document.addEventListener('session:saved', () => {
-    const route = Router.current();
-    if (route === 'dashboard') {
-      const root = document.getElementById('view-root');
-      if (root) renderDashboard(root);
-    }
-  });
+  if (!_sessionSavedDocBound) {
+    _sessionSavedDocBound = true;
+    document.addEventListener('session:saved', () => {
+      const route = Router.current();
+      if (route === 'dashboard') {
+        const root = document.getElementById('view-root');
+        if (root) renderDashboard(root);
+      }
+    });
+  }
 
   maybeRefreshIcsSchedule();
 }
@@ -193,6 +259,8 @@ function initKeyboard() {
 
 /** Single global delegation for every `[data-action]` control (shell, FAB, future views). */
 function initActionDelegation() {
+  if (_actionDelegationBound) return;
+  _actionDelegationBound = true;
   document.addEventListener('click', e => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
@@ -251,11 +319,11 @@ function showWelcome() {
   renderIcons(welcome);
 
   welcome.querySelector('[data-welcome="demo"]')?.addEventListener('click', () => {
-    const demoData = generateDemoData(DEFAULT_STATE);
+    const demoData = generateDemoData(JSON.parse(JSON.stringify(DEFAULT_STATE)));
     State.init(demoData);
     Storage.saveNow(demoData);
     welcome.hidden = true;
-    launchApp();
+    refreshCurrentView();
   });
 
   welcome.querySelector('[data-welcome="empty"]')?.addEventListener('click', () => {
@@ -263,7 +331,7 @@ function showWelcome() {
     State.init(fresh);
     Storage.saveNow(fresh);
     welcome.hidden = true;
-    launchApp();
+    refreshCurrentView();
   });
 }
 

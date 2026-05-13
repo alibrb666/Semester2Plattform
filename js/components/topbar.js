@@ -4,9 +4,12 @@ import { daysUntil, formatDuration, sumDuration, getSubjectSessions, renderIcons
 import { Modal } from './modal.js';
 
 let _interval = null;
+let _topBarInited = false;
 
 export const TopBar = {
   init() {
+    if (_topBarInited) return;
+    _topBarInited = true;
     this._render();
     _interval = setInterval(() => this._renderCountdowns(), 60000);
     State.subscribe(() => this._render());

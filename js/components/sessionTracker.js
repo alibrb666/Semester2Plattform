@@ -57,13 +57,16 @@ function closeActiveSegment(task, endISO, addedSecs) {
 export const SessionTracker = {
   _session: null,
   _widget:  null,
+  _widgetClickBound: false,
 
   init() {
     this._widget = document.getElementById('session-widget');
     if (!this._widget) return;
 
-    /* Single delegated listener — never re-added */
-    this._widget.addEventListener('click', e => this._handleClick(e));
+    if (!this._widgetClickBound) {
+      this._widgetClickBound = true;
+      this._widget.addEventListener('click', e => this._handleClick(e));
+    }
 
     this._session = loadActive();
     if (this._session && !Array.isArray(this._session.tasks)) {

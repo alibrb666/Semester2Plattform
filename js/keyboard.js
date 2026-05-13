@@ -1,5 +1,6 @@
 const _handlers = new Map();
 let _active = true;
+let _keydownBound = false;
 
 function isInput(el) {
   return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable;
@@ -7,6 +8,8 @@ function isInput(el) {
 
 export const Keyboard = {
   init() {
+    if (_keydownBound) return;
+    _keydownBound = true;
     document.addEventListener('keydown', e => {
       if (!_active) return;
       const key = e.key;
