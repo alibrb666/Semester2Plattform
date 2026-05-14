@@ -99,6 +99,12 @@ export const State = {
     });
   },
 
+  updateSubject(id, patch) {
+    this.set({ subjects: this.getSubjects().map(s => s.id === id ? { ...s, ...patch } : s) });
+  },
+  addSubject(subj) { this.set({ subjects: [...this.getSubjects(), subj] }); },
+  removeSubject(id) { this.set({ subjects: this.getSubjects().filter(s => s.id !== id) }); },
+
   getTodos()         { return _state.todos || []; },
   addTodo(todo)      { this.set({ todos: [...this.getTodos(), todo] }); },
   updateTodo(id, patch) {

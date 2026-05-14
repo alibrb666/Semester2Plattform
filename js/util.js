@@ -111,12 +111,22 @@ export function isoDate(date = new Date()) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+let _phases = null;
+export function setPhases(phases) { _phases = phases || null; }
+
+export function applySubjectColors(subjects) {
+  const root = document.documentElement;
+  (subjects || []).forEach(s => {
+    if (s.colorHex) root.style.setProperty(`--subject-${s.id}`, s.colorHex);
+  });
+}
+
 export function getPhase(date = new Date()) {
   const d = toDate(date);
-  const phase1End = new Date('2026-06-14');
-  const phase2End = new Date('2026-06-30');
-  if (d <= phase1End) return { num: 1, label: 'Phase 1 – Stoff aufbauen', color: 'var(--subject-klr)' };
-  if (d <= phase2End) return { num: 2, label: 'Phase 2 – Vertiefung', color: 'var(--subject-prog)' };
+  const p1End = _phases?.p1End ? new Date(_phases.p1End) : new Date('2026-06-14');
+  const p2End = _phases?.p2End ? new Date(_phases.p2End) : new Date('2026-06-30');
+  if (d <= p1End) return { num: 1, label: 'Phase 1 – Stoff aufbauen', color: 'var(--subject-klr)' };
+  if (d <= p2End) return { num: 2, label: 'Phase 2 – Vertiefung', color: 'var(--subject-prog)' };
   return { num: 3, label: 'Phase 3 – Klausurmodus', color: 'var(--danger)' };
 }
 

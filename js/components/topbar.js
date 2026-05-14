@@ -13,6 +13,7 @@ export const TopBar = {
     this._render();
     _interval = setInterval(() => this._renderCountdowns(), 60000);
     State.subscribe(() => this._render());
+    document.addEventListener('subjects:changed', () => this._renderCountdowns());
   },
 
   /** Called from central `data-action` delegation in app.js */

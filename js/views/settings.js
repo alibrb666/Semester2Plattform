@@ -1,7 +1,7 @@
 import { State } from '../state.js';
 import { Storage } from '../storage.js';
 import { Theme } from '../theme.js';
-import { renderIcons } from '../util.js';
+import { renderIcons, setPhases, applySubjectColors } from '../util.js';
 import { Toast } from '../components/toast.js';
 import { Modal } from '../components/modal.js';
 import * as scheduleSync from '../scheduleSync.js';
@@ -34,6 +34,34 @@ export function renderSettings(container) {
             </div>
             <input class="input" id="set-daily" type="number" min="1" max="16" step="0.5"
               value="${(settings.dailyGoalMinutes||240)/60}" style="max-width:100px" />
+          </div>
+        </section>
+
+        <!-- Fächer & Klausuren -->
+        <section class="settings-section" id="settings-subjects-section">
+          <div class="settings-section-title">Fächer &amp; Klausuren</div>
+          ${_buildSubjectCards(subjects)}
+          <button class="btn btn-secondary btn-sm" id="btn-add-subject" type="button" style="margin-top:4px">
+            <i data-lucide="plus"></i> Fach hinzufügen
+          </button>
+        </section>
+
+        <!-- Lernphasen -->
+        <section class="settings-section" id="settings-phases-section">
+          <div class="settings-section-title">Lernphasen</div>
+          ${_buildPhasesEditor(settings)}
+        </section>
+
+        <!-- Klausur-Reihenfolge -->
+        <section class="settings-section">
+          <div class="settings-section-title">Klausur-Reihenfolge</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${[...subjects].sort((a,b) => (a.examDate||'').localeCompare(b.examDate||'')).map(s => `
+              <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary)">
+                <div style="width:10px;height:10px;border-radius:50%;background:${s.colorHex||`var(--subject-${s.id})`};flex-shrink:0"></div>
+                <span style="flex:1">${s.name}</span>
+                <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-tertiary)">${s.examDate ? new Date(s.examDate+'T12:00:00').toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'}) : '—'}</span>
+              </div>`).join('')}
           </div>
         </section>
 
@@ -214,6 +242,79 @@ export function renderSettings(container) {
   document.addEventListener('settings:export', () => exportData(), { once:true });
 }
 
+/* ── Farb-Optionen ──────────────────────────────────────── */
+const SUBJECT_COLORS = [
+  { hex: '#10B981', label: 'Grün' },
+  { hex: '#8B5CF6', label: 'Violett' },
+  { hex: '#06B6D4', label: 'Cyan' },
+  { hex: '#F59E0B', label: 'Amber' },
+  { hex: '#EF4444', label: 'Rot' },
+  { hex: '#3B82F6', label: 'Blau' },
+];
+
+function _buildSubjectCards(subjects) {
+  return subjects.map(s => {
+    const color = s.colorHex || `var(--subject-${s.id})`;
+    const dateLabel = s.examDate
+      ? new Date(s.examDate + 'T12:00:00').toLocaleDateString('de-DE', { day:'numeric', month:'long', year:'numeric' })
+      : 'Kein Datum';
+    return `
+      <div class="subject-edit-card">
+        <div class="subject-edit-dot" style="background:${color}"></div>
+        <div class="subject-edit-info">
+          <div class="subject-edit-name">${_esc(s.name)}</div>
+          <div class="subject-edit-date">Klausur: ${dateLabel}</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" data-edit-subject="${s.id}" type="button">Bearbeiten</button>
+      </div>`;
+  }).join('');
+}
+
+function _buildPhasesEditor(settings) {
+  const ph = settings.phases || {};
+  const rows = [
+    { key: '1', label: 'Phase 1 – Stoff aufbauen', startKey: 'p1Start', endKey: 'p1End',
+      startDef: '2026-01-01', endDef: '2026-06-14' },
+    { key: '2', label: 'Phase 2 – Vertiefung',     startKey: 'p2Start', endKey: 'p2End',
+      startDef: '2026-06-15', endDef: '2026-06-30' },
+    { key: '3', label: 'Phase 3 – Klausurmodus',   startKey: 'p3Start', endKey: 'p3End',
+      startDef: '2026-07-01', endDef: '2026-07-31' },
+  ];
+  return rows.map(r => `
+    <div class="phase-edit-row">
+      <div class="phase-edit-label">${r.label}</div>
+      <div class="field" style="margin:0">
+        <label style="font-size:11px;color:var(--text-tertiary)">Von</label>
+        <input class="input" type="date" id="phase-${r.startKey}"
+          value="${ph[r.startKey] || r.startDef}" style="font-size:12px;padding:5px 8px" />
+      </div>
+      <div class="field" style="margin:0">
+        <label style="font-size:11px;color:var(--text-tertiary)">Bis</label>
+        <input class="input" type="date" id="phase-${r.endKey}"
+          value="${ph[r.endKey] || r.endDef}" style="font-size:12px;padding:5px 8px" />
+      </div>
+    </div>`).join('');
+}
+
+function _colorPicker(selectedHex) {
+  return `<div class="color-picker">
+    ${SUBJECT_COLORS.map(c => `
+      <div class="color-option${c.hex === selectedHex ? ' selected' : ''}"
+        style="background:${c.hex}" data-color="${c.hex}" title="${c.label}"
+        role="radio" aria-checked="${c.hex === selectedHex}" tabindex="0"></div>`).join('')}
+  </div>
+  <input type="hidden" id="subj-color" value="${selectedHex || SUBJECT_COLORS[0].hex}" />`;
+}
+
+function _slugify(name) {
+  const slug = name.toLowerCase()
+    .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
+    .replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0, 20);
+  return slug || 's' + Date.now().toString(36);
+}
+
+function _esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
 function _bindSettings(container, subjects) {
   /* Name & daily goal – save on blur */
   container.querySelector('#set-name')?.addEventListener('blur', e => {
@@ -250,6 +351,36 @@ function _bindSettings(container, subjects) {
       const v = parseFloat(slider.value);
       const goals = { ...State.getSettings().weeklyGoals, [s.id]: Math.round(v * 60) };
       State.updateSettings({ weeklyGoals: goals });
+    });
+  });
+
+  /* ── Fach bearbeiten ─────────────────────────────── */
+  container.querySelectorAll('[data-edit-subject]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id   = btn.dataset.editSubject;
+      const subj = State.getSubjects().find(s => s.id === id);
+      if (!subj) return;
+      _openSubjectModal(subj, false, container);
+    });
+  });
+
+  container.querySelector('#btn-add-subject')?.addEventListener('click', () => {
+    _openSubjectModal(null, true, container);
+  });
+
+  /* ── Lernphasen ──────────────────────────────────── */
+  const phaseKeys = ['p1Start','p1End','p2Start','p2End','p3Start','p3End'];
+  phaseKeys.forEach(key => {
+    container.querySelector(`#phase-${key}`)?.addEventListener('change', () => {
+      const newPhases = {};
+      phaseKeys.forEach(k => {
+        const el = container.querySelector(`#phase-${k}`);
+        if (el?.value) newPhases[k] = el.value;
+      });
+      State.updateSettings({ phases: newPhases });
+      Storage.saveNow(State.get());
+      setPhases(newPhases);
+      Toast.success('Phasen gespeichert');
     });
   });
 
@@ -530,6 +661,89 @@ function _bindSettings(container, subjects) {
   });
 
   refreshSchedulePanels();
+}
+
+function _openSubjectModal(subj, isNew, container) {
+  const defaultColor = SUBJECT_COLORS[0].hex;
+  const curColor = subj?.colorHex || defaultColor;
+
+  const body = `
+    <div class="field">
+      <label for="subj-name">Name *</label>
+      <input class="input" id="subj-name" type="text" value="${_esc(subj?.name || '')}"
+        placeholder="z.B. Analysis" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label for="subj-exam">Klausurdatum</label>
+      <input class="input" id="subj-exam" type="date" value="${subj?.examDate || ''}" />
+    </div>
+    <div class="field">
+      <label>Farbe</label>
+      ${_colorPicker(curColor)}
+    </div>
+    ${!isNew ? `<div class="field-hint" style="font-size:11px;color:var(--text-tertiary)">ID: <code>${subj?.id}</code> (intern, nicht änderbar)</div>` : ''}`;
+
+  const modal = Modal.open({
+    title: isNew ? 'Fach hinzufügen' : 'Fach bearbeiten',
+    body,
+    footer: `
+      ${!isNew ? `<button class="btn btn-danger btn-sm" id="subj-del">Löschen</button>` : ''}
+      <button class="btn btn-ghost btn-sm" id="subj-cancel">Abbrechen</button>
+      <button class="btn btn-primary btn-sm" id="subj-save">Speichern</button>`
+  });
+  renderIcons(modal.el);
+  modal.el.querySelector('#subj-name')?.focus();
+
+  // Color picker interaction
+  modal.el.querySelectorAll('.color-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      modal.el.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+      opt.classList.add('selected');
+      modal.el.querySelector('#subj-color').value = opt.dataset.color;
+    });
+    opt.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') opt.click(); });
+  });
+
+  modal.el.querySelector('#subj-cancel')?.addEventListener('click', () => modal.close());
+
+  modal.el.querySelector('#subj-del')?.addEventListener('click', () => {
+    const sessionCount = State.getSessions().filter(s => s.subjectId === subj.id).length;
+    if (sessionCount > 0) {
+      Toast.error('Fach hat Sessions', `${sessionCount} Session${sessionCount===1?'':'s'} sind diesem Fach zugeordnet — erst Sessions löschen oder Fach umbenennen.`);
+      return;
+    }
+    State.removeSubject(subj.id);
+    Storage.saveNow(State.get());
+    modal.close();
+    Toast.success('Fach gelöscht');
+    renderSettings(container);
+  });
+
+  modal.el.querySelector('#subj-save')?.addEventListener('click', () => {
+    const name     = modal.el.querySelector('#subj-name')?.value.trim();
+    const examDate = modal.el.querySelector('#subj-exam')?.value || null;
+    const colorHex = modal.el.querySelector('#subj-color')?.value || defaultColor;
+    if (!name) { modal.el.querySelector('#subj-name')?.focus(); return; }
+
+    if (isNew) {
+      const id = _slugify(name);
+      if (State.getSubjects().find(s => s.id === id)) {
+        Toast.error('ID-Konflikt', `Ein Fach mit ähnlichem Namen existiert bereits (ID: ${id}).`);
+        return;
+      }
+      State.addSubject({ id, name, color: `var(--subject-${id})`, colorHex, examDate,
+        weeklyGoal: 360 });
+    } else {
+      State.updateSubject(subj.id, { name, examDate, colorHex });
+    }
+    applySubjectColors(State.getSubjects());
+    Storage.saveNow(State.get());
+    modal.close();
+    Toast.success(isNew ? 'Fach hinzugefügt' : 'Fach gespeichert');
+    // Refresh TopBar countdowns
+    document.dispatchEvent(new CustomEvent('subjects:changed'));
+    renderSettings(container);
+  });
 }
 
 function exportData() {

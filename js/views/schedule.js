@@ -18,7 +18,11 @@ let _scheduleMinuteTimer = null;
 let _viewMode = 'week';   // 'week' | 'day'
 let _dayDate  = null;     // ISO string for day view
 
-const colorMap = { klr:'var(--subject-klr)', math:'var(--subject-math)', prog:'var(--subject-prog)', kbs:'var(--subject-kbs)' };
+function getColor(subjectId) {
+  if (!subjectId) return 'rgba(148,163,184,0.55)';
+  const subj = State.getSubjects().find(s => s.id === subjectId);
+  return subj?.colorHex || `var(--subject-${subjectId})`;
+}
 
 /* ── Time helpers ──────────────────────────────────────── */
 function timeToTop(timeStr) { return (timeToMinutes(timeStr) - START_H * 60) * (HOUR_H / 60); }
@@ -231,7 +235,7 @@ function _placeBlocks(container, weekDays) {
 
     const top    = timeToTop(block.startTime);
     const height = blockHeight(block.startTime, block.endTime);
-    const color  = colorMap[block.subjectId] || 'var(--accent)';
+    const color  = getColor(block.subjectId);
     const icsHit = useIcs && !block.locked && icsOverlapsBlock(block, weekDays, weekIcs);
 
     const el = document.createElement('div');
@@ -268,7 +272,7 @@ function _placeIcsEvents(container, weekDays) {
     const en = dateToHm(ev.endsAt);
     const top = timeToTop(st);
     const height = Math.max(24, blockHeight(st, en));
-    const color = ev.subjectId ? (colorMap[ev.subjectId] || 'var(--accent)') : 'rgba(148,163,184,0.55)';
+    const color = getColor(ev.subjectId);
 
     const el = document.createElement('div');
     el.className = 'schedule-block ics-sync locked';
@@ -305,7 +309,7 @@ function _placeBlocksDay(container, dateObj) {
 
     const top    = timeToTop(block.startTime);
     const height = blockHeight(block.startTime, block.endTime);
-    const color  = colorMap[block.subjectId] || 'var(--accent)';
+    const color  = getColor(block.subjectId);
 
     const el = document.createElement('div');
     el.className = `schedule-block day-view-block${block.locked ? ' locked' : ''}`;
@@ -338,7 +342,7 @@ function _placeIcsEventsDay(container, dateObj) {
     const en = dateToHm(ev.endsAt);
     const top    = timeToTop(st);
     const height = Math.max(48, blockHeight(st, en));
-    const color  = ev.subjectId ? (colorMap[ev.subjectId] || 'var(--accent)') : 'rgba(148,163,184,0.55)';
+    const color  = getColor(ev.subjectId);
 
     const el = document.createElement('div');
     el.className = 'schedule-block ics-sync locked day-view-block';

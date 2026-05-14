@@ -20,7 +20,7 @@ import { renderMocks }     from './views/mocks.js';
 import { renderSettings }  from './views/settings.js';
 import { renderTodos }     from './views/todos.js';
 import { generateDemoData } from './demo.js';
-import { renderIcons } from './util.js';
+import { renderIcons, setPhases, applySubjectColors } from './util.js';
 
 let _launchAppStarted = false;
 let _routerVisualListener = false;
@@ -111,6 +111,8 @@ async function boot() {
       State.init(stored);
       launchApp();
     }
+    setPhases(State.getSettings().phases || null);
+    applySubjectColors(State.getSubjects());
 
     void waitForLucide(15000).then(() => {
       console.log('[DEBUG] Lucide icons loaded');
