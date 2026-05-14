@@ -45,6 +45,20 @@ function buildFields(type, subjects) {
       <label for="qc-note-text">Notiz</label>
       <textarea class="textarea" id="qc-note-text" rows="3" placeholder="Schnelle Notiz…"></textarea>
     </div>`;
+  if (type === 'todo') return `
+    <div class="field">
+      <label for="qc-todo-title">Aufgabe *</label>
+      <input class="input" id="qc-todo-title" type="text"
+        placeholder="Was muss erledigt werden?" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label for="qc-subject">Fach (optional)</label>
+      <select class="select" id="qc-subject"><option value="">Keins</option>${subOpts}</select>
+    </div>
+    <div class="field">
+      <label for="qc-todo-due">Fällig am (optional)</label>
+      <input class="input" id="qc-todo-due" type="date" />
+    </div>`;
   if (type === 'mock') return `
     <div class="field">
       <label for="qc-subject">Klausur</label>
@@ -85,6 +99,7 @@ export const QuickCapture = {
           <button class="qc-tab ${currentType==='error'?'active':''}" data-type="error">Fehler</button>
           <button class="qc-tab ${currentType==='note'?'active':''}" data-type="note">Notiz</button>
           <button class="qc-tab ${currentType==='mock'?'active':''}" data-type="mock">Mock</button>
+          <button class="qc-tab ${currentType==='todo'?'active':''}" data-type="todo">Todo</button>
         </div>
         <div id="qc-fields">${buildFields(currentType, subjects)}</div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
@@ -127,6 +142,14 @@ export const QuickCapture = {
       if (!note) return;
       State.addError({ id: uuid(), subjectId: subject, createdAt: new Date().toISOString(), topic: note.slice(0,60), category: 'fluke', description: note, resolution: '', reviewedAt: [], repeated: 0 });
       Toast.success('Notiz gespeichert');
+    } else if (type === 'todo') {
+      const title = backdrop.querySelector('#qc-todo-title')?.value.trim();
+      if (!title) { backdrop.querySelector('#qc-todo-title')?.focus(); return; }
+      const subjectId = backdrop.querySelector('#qc-subject')?.value || null;
+      const dueDate   = backdrop.querySelector('#qc-todo-due')?.value || null;
+      State.addTodo({ id: uuid(), title, subjectId: subjectId || null, priority: 'medium',
+        dueDate, note: '', done: false, doneAt: null, createdAt: new Date().toISOString() });
+      Toast.success('Todo gespeichert', title);
     } else if (type === 'mock') {
       const score = parseInt(backdrop.querySelector('#qc-score')?.value);
       const max   = parseInt(backdrop.querySelector('#qc-max')?.value) || 100;

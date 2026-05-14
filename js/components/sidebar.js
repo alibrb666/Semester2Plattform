@@ -2,7 +2,7 @@ import { State } from '../state.js';
 import { Router } from '../router.js';
 import { getPhase, getStreak, getTodaySessions, sumDuration, formatDuration, renderIcons } from '../util.js';
 
-const ROUTES = ['dashboard','schedule','sessions','statistics','errors','mocks','settings'];
+const ROUTES = ['dashboard','schedule','sessions','todos','statistics','errors','mocks','settings'];
 
 let _sidebarInited = false;
 export const Sidebar = {

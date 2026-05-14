@@ -26,7 +26,7 @@ export const Keyboard = {
       if (key === 'f' || key === 'F') { e.preventDefault(); _fire('focus'); return; }
       if (key === 'n' || key === 'N') { e.preventDefault(); _fire('quick-capture'); return; }
       if (key === 't' || key === 'T') { e.preventDefault(); _fire('theme'); return; }
-      if (key >= '1' && key <= '7') { e.preventDefault(); _fire('nav-' + key); return; }
+      if (key >= '1' && key <= '8') { e.preventDefault(); _fire('nav-' + key); return; }
     });
   },
 

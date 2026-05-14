@@ -18,6 +18,7 @@ import { renderStatistics }from './views/statistics.js';
 import { renderErrors }    from './views/errors.js';
 import { renderMocks }     from './views/mocks.js';
 import { renderSettings }  from './views/settings.js';
+import { renderTodos }     from './views/todos.js';
 import { generateDemoData } from './demo.js';
 import { renderIcons } from './util.js';
 
@@ -36,6 +37,7 @@ function refreshCurrentView() {
     dashboard: renderDashboard,
     schedule: renderSchedule,
     sessions: renderSessions,
+    todos: renderTodos,
     statistics: renderStatistics,
     errors: renderErrors,
     mocks: renderMocks,
@@ -83,6 +85,7 @@ const DEFAULT_STATE = {
   mocks: [],
   weeklyReviews: [],
   achievements: { longestStreak:0, totalHours:0 },
+  todos: [],
   schedulePrefs: {
     source: 'manual',
     icsUrl: '',
@@ -161,6 +164,7 @@ function launchApp() {
   Router.register('dashboard',  renderDashboard);
   Router.register('schedule',   renderSchedule);
   Router.register('sessions',   renderSessions);
+  Router.register('todos',      renderTodos);
   Router.register('statistics', renderStatistics);
   Router.register('errors',     renderErrors);
   Router.register('mocks',      renderMocks);
@@ -245,7 +249,7 @@ async function maybeRefreshIcsSchedule() {
 
 function initKeyboard() {
   Keyboard.init();
-  const ROUTES = ['dashboard','schedule','sessions','statistics','errors','mocks','settings'];
+  const ROUTES = ['dashboard','schedule','sessions','todos','statistics','errors','mocks','settings'];
 
   Keyboard.on('palette',        () => document.dispatchEvent(new CustomEvent('app:palette')));
   Keyboard.on('theme',          () => Theme.toggle());
@@ -287,7 +291,7 @@ function showShortcuts() {
         <div>
           <div class="shortcut-section-title">Navigation</div>
           ${[
-            ['1–7', 'Zwischen Views wechseln'],
+            ['1–8', 'Zwischen Views wechseln'],
             ['⌘K', 'Befehlspalette öffnen'],
             ['T', 'Theme umschalten'],
             ['?', 'Shortcuts anzeigen'],

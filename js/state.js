@@ -99,6 +99,13 @@ export const State = {
     });
   },
 
+  getTodos()         { return _state.todos || []; },
+  addTodo(todo)      { this.set({ todos: [...this.getTodos(), todo] }); },
+  updateTodo(id, patch) {
+    this.set({ todos: this.getTodos().map(t => t.id === id ? { ...t, ...patch } : t) });
+  },
+  removeTodo(id)     { this.set({ todos: this.getTodos().filter(t => t.id !== id) }); },
+
   removeDemoEntries() {
     this.set({
       sessions: this.getSessions().filter(s => !s.isDemo),

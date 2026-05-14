@@ -4,37 +4,28 @@ import { uuid, getWeekMonday, getWeekDays, getDayName, isoDate, isSameDay,
   timeToMinutes, minutesToTime, snapMinutes, renderIcons, addDays, endOfDay } from '../util.js';
 import { Modal } from '../components/modal.js';
 import { Toast } from '../components/toast.js';
+import { SessionTracker } from '../components/sessionTracker.js';
 import * as scheduleSync from '../scheduleSync.js';
 
 const HOUR_H  = 80;
 const START_H = 6;
 const END_H   = 22;
 const TOTAL_H = END_H - START_H;
+
 let _weekOffset = 0;
 let _dragState   = null;
-let _timeIndicator = null;
 let _scheduleMinuteTimer = null;
+let _viewMode = 'week';   // 'week' | 'day'
+let _dayDate  = null;     // ISO string for day view
 
 const colorMap = { klr:'var(--subject-klr)', math:'var(--subject-math)', prog:'var(--subject-prog)', kbs:'var(--subject-kbs)' };
 
-function timeToTop(timeStr) {
-  const mins = timeToMinutes(timeStr);
-  return (mins - START_H * 60) * (HOUR_H / 60);
-}
-
-function topToTime(px) {
-  const mins = Math.round((px / (HOUR_H / 60)) + START_H * 60);
-  return minutesToTime(snapMinutes(mins));
-}
-
-function blockHeight(start, end) {
-  return (timeToMinutes(end) - timeToMinutes(start)) * (HOUR_H / 60);
-}
-
-function dateToHm(iso) {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
+/* ── Time helpers ──────────────────────────────────────── */
+function timeToTop(timeStr) { return (timeToMinutes(timeStr) - START_H * 60) * (HOUR_H / 60); }
+function topToTime(px)      { return minutesToTime(snapMinutes(Math.round(px / (HOUR_H/60)) + START_H * 60)); }
+function blockHeight(s, e)  { return (timeToMinutes(e) - timeToMinutes(s)) * (HOUR_H / 60); }
+function dateToHm(iso)      { const d = new Date(iso); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+function getDayDate()       { if (!_dayDate) _dayDate = new Date().toISOString().slice(0, 10); return _dayDate; }
 
 function blockDateStrForWeek(block, weekDays) {
   if (block.date) return block.date.split('T')[0];
@@ -56,22 +47,29 @@ function icsOverlapsBlock(block, weekDays, icsEvents) {
   });
 }
 
-function dayIndexToKey(i) {
-  return ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'][i];
-}
-function dayKeyToIndex(key) {
-  return ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].indexOf(key);
+function dayIndexToKey(i) { return ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'][i]; }
+function dayKeyToIndex(key) { return ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].indexOf(key); }
+function jsDateToDayKey(d)  { return dayIndexToKey((d.getDay() + 6) % 7); }
+
+/* ── Entry point ───────────────────────────────────────── */
+export function renderSchedule(container) {
+  if (_scheduleMinuteTimer) { clearInterval(_scheduleMinuteTimer); _scheduleMinuteTimer = null; }
+  _viewMode = State.getSettings().scheduleViewMode || 'week';
+
+  if (_viewMode === 'day') {
+    _renderDayView(container);
+  } else {
+    _renderWeekView(container);
+  }
 }
 
-export function renderSchedule(container) {
-  if (_scheduleMinuteTimer) {
-    clearInterval(_scheduleMinuteTimer);
-    _scheduleMinuteTimer = null;
-  }
+/* ══════════════════════════════════════════════════════════
+   WEEK VIEW
+══════════════════════════════════════════════════════════ */
+function _renderWeekView(container) {
   const subjects = State.getSubjects();
   const weekDays = getWeekDays(addDays(getWeekMonday(), _weekOffset * 7));
   const todayIdx = weekDays.findIndex(d => isSameDay(d, new Date()));
-
   const dayNames = weekDays.map(d => getDayName(d,'short').toUpperCase());
   const dayNums  = weekDays.map(d => d.getDate());
 
@@ -79,11 +77,15 @@ export function renderSchedule(container) {
     <div class="schedule-view">
       <div class="schedule-header">
         <div class="view-title">Stundenplan</div>
+        <div class="schedule-view-toggle">
+          <button class="btn btn-sm btn-primary" id="btn-view-week">Woche</button>
+          <button class="btn btn-sm btn-secondary" id="btn-view-day">Tag</button>
+        </div>
         <div class="schedule-week-nav">
           <button class="btn btn-secondary btn-sm" id="btn-week-prev">
             <i data-lucide="chevron-left"></i>
           </button>
-          <span class="schedule-week-label">${weekLabel(weekDays)}</span>
+          <span class="schedule-week-label">${_weekLabel(weekDays)}</span>
           <button class="btn btn-secondary btn-sm" id="btn-week-next">
             <i data-lucide="chevron-right"></i>
           </button>
@@ -106,12 +108,10 @@ export function renderSchedule(container) {
 
       <div class="schedule-grid-wrap" id="schedule-wrap">
         <div class="schedule-grid" id="schedule-grid">
-          <div class="schedule-time-col">
-            ${buildTimeAxis()}
-          </div>
+          <div class="schedule-time-col">${_buildTimeAxis()}</div>
           ${weekDays.map((d, di) => `
             <div class="schedule-day-col${di===todayIdx?' today':''}" data-day-index="${di}" data-day-date="${isoDate(d)}">
-              ${buildHourLines()}
+              ${_buildHourLines()}
             </div>`).join('')}
         </div>
       </div>
@@ -123,25 +123,75 @@ export function renderSchedule(container) {
   _updateScheduleSyncBar(container);
   _updateTimeIndicator(container, todayIdx);
   _scheduleMinuteTimer = setInterval(() => _updateTimeIndicator(container, todayIdx), 60000);
-  _bindEvents(container, weekDays, subjects);
+  _bindWeekEvents(container, weekDays, subjects);
 }
 
-function weekLabel(days) {
-  const first = days[0], last = days[6];
-  const fStr  = first.toLocaleDateString('de-DE', { day:'numeric', month:'short' });
-  const lStr  = last.toLocaleDateString('de-DE', { day:'numeric', month:'short', year:'numeric' });
+/* ══════════════════════════════════════════════════════════
+   DAY VIEW
+══════════════════════════════════════════════════════════ */
+function _renderDayView(container) {
+  const dateObj = new Date(getDayDate() + 'T12:00:00');
+  const isToday = isSameDay(dateObj, new Date());
+  const subjects = State.getSubjects();
+  const dayLabel = dateObj.toLocaleDateString('de-DE', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+  container.innerHTML = `
+    <div class="schedule-view">
+      <div class="schedule-header">
+        <div class="view-title">Stundenplan</div>
+        <div class="schedule-view-toggle">
+          <button class="btn btn-sm btn-secondary" id="btn-view-week">Woche</button>
+          <button class="btn btn-sm btn-primary" id="btn-view-day">Tag</button>
+        </div>
+        <div class="schedule-week-nav">
+          <button class="btn btn-secondary btn-sm" id="btn-day-prev">
+            <i data-lucide="chevron-left"></i>
+          </button>
+          <span class="schedule-week-label">${dayLabel}</span>
+          <button class="btn btn-secondary btn-sm" id="btn-day-next">
+            <i data-lucide="chevron-right"></i>
+          </button>
+          ${!isToday ? `<button class="btn btn-ghost btn-sm" id="btn-day-today">Heute</button>` : ''}
+        </div>
+        <button class="btn btn-primary btn-sm" id="btn-add-block">
+          <i data-lucide="plus"></i> Lernblock
+        </button>
+      </div>
+      <div class="schedule-sync-bar" id="schedule-sync-bar" style="display:none"></div>
+
+      <div class="schedule-grid-wrap" id="schedule-wrap">
+        <div class="schedule-grid schedule-grid-day" id="schedule-grid">
+          <div class="schedule-time-col">${_buildTimeAxis()}</div>
+          <div class="schedule-day-col day-view-col${isToday ? ' today' : ''}"
+            data-day-date="${getDayDate()}">${_buildHourLines()}</div>
+        </div>
+      </div>
+    </div>`;
+
+  renderIcons(container);
+  _placeBlocksDay(container, dateObj);
+  _placeIcsEventsDay(container, dateObj);
+  _updateScheduleSyncBar(container);
+  if (isToday) _updateTimeIndicator(container, 0);
+  _scheduleMinuteTimer = setInterval(() => { if (isToday) _updateTimeIndicator(container, 0); }, 60000);
+  _bindDayEvents(container, dateObj, subjects);
+}
+
+/* ── Shared builders ───────────────────────────────────── */
+function _weekLabel(days) {
+  const fStr = days[0].toLocaleDateString('de-DE', { day:'numeric', month:'short' });
+  const lStr = days[6].toLocaleDateString('de-DE', { day:'numeric', month:'short', year:'numeric' });
   return `${fStr} – ${lStr}`;
 }
 
-function buildTimeAxis() {
+function _buildTimeAxis() {
   let html = '';
-  for (let h = START_H; h < END_H; h++) {
+  for (let h = START_H; h < END_H; h++)
     html += `<div class="schedule-time-slot" style="height:${HOUR_H}px"><span>${String(h).padStart(2,'0')}:00</span></div>`;
-  }
   return html;
 }
 
-function buildHourLines() {
+function _buildHourLines() {
   let html = '';
   for (let h = 0; h < TOTAL_H; h++) {
     html += `<div class="schedule-hour-line" style="top:${h*HOUR_H}px"></div>`;
@@ -150,20 +200,20 @@ function buildHourLines() {
   return html;
 }
 
+/* ── Block placement (week) ────────────────────────────── */
 function _placeBlocks(container, weekDays) {
   const blocks = State.getBlocks();
   const wrap   = container.querySelector('#schedule-grid');
   if (!wrap) return;
 
-  const prefs = State.get().schedulePrefs || {};
-  const cache = scheduleSync.loadCache();
+  const prefs  = State.get().schedulePrefs || {};
+  const cache  = scheduleSync.loadCache();
   const useIcs = (prefs.source === 'ics-url' || prefs.source === 'ics-file')
     && Array.isArray(cache.events) && cache.events.length > 0;
   const weekIcs = useIcs
     ? scheduleSync.filterEventsForRange(cache.events, weekDays[0], endOfDay(weekDays[6]))
     : [];
 
-  /* Remove existing blocks */
   wrap.querySelectorAll('.schedule-block:not(.ics-sync)').forEach(b => b.remove());
 
   blocks.forEach(block => {
@@ -182,11 +232,10 @@ function _placeBlocks(container, weekDays) {
     const top    = timeToTop(block.startTime);
     const height = blockHeight(block.startTime, block.endTime);
     const color  = colorMap[block.subjectId] || 'var(--accent)';
-    const isConflict = checkConflict(blocks, block);
     const icsHit = useIcs && !block.locked && icsOverlapsBlock(block, weekDays, weekIcs);
 
     const el = document.createElement('div');
-    el.className = `schedule-block${block.locked ? ' locked' : ''}${isConflict || icsHit ? ' conflict' : ''}`;
+    el.className = `schedule-block${block.locked ? ' locked' : ''}${icsHit ? ' conflict' : ''}`;
     el.dataset.blockId = block.id;
     el.style.cssText = `top:${top}px;height:${Math.max(24,height)}px;background:${color}22;color:${color};border:1px solid ${color}44`;
     el.innerHTML = `
@@ -203,7 +252,6 @@ function _placeIcsEvents(container, weekDays) {
   const wrap  = container.querySelector('#schedule-grid');
   if (!wrap) return;
   wrap.querySelectorAll('.schedule-block.ics-sync').forEach(b => b.remove());
-
   if (prefs.source === 'manual' || !cache.events?.length) return;
 
   const overrides = scheduleSync.loadOverrides();
@@ -226,24 +274,85 @@ function _placeIcsEvents(container, weekDays) {
     el.className = 'schedule-block ics-sync locked';
     el.dataset.icsId = ev.id;
     el.style.cssText = `top:${top}px;height:${height}px;background:${color}18;color:${color};border:1px solid ${color}55`;
-    const lab = document.createElement('div');
-    lab.className = 'schedule-block-label';
-    lab.textContent = ev.title || 'Termin';
-    const tim = document.createElement('div');
-    tim.className = 'schedule-block-time';
-    tim.textContent = `${st}–${en}`;
-    el.appendChild(lab);
-    el.appendChild(tim);
-    if (ev.location) {
-      const loc = document.createElement('div');
-      loc.style.cssText = 'font-size:10px;opacity:.88';
-      loc.textContent = ev.location;
-      el.appendChild(loc);
-    }
+    el.innerHTML = `
+      <div class="schedule-block-label">${ev.title || 'Termin'}</div>
+      <div class="schedule-block-time">${st}–${en}</div>
+      ${ev.location ? `<div style="font-size:10px;opacity:.85">${ev.location}</div>` : ''}`;
     col.appendChild(el);
   });
 }
 
+/* ── Block placement (day) ─────────────────────────────── */
+function _placeBlocksDay(container, dateObj) {
+  const dateStr = isoDate(dateObj);
+  const dayKey  = jsDateToDayKey(dateObj);
+  const blocks  = State.getBlocks();
+  const col     = container.querySelector('.schedule-day-col');
+  if (!col) return;
+  col.querySelectorAll('.schedule-block:not(.ics-sync)').forEach(b => b.remove());
+
+  const prefs  = State.get().schedulePrefs || {};
+  const cache  = scheduleSync.loadCache();
+  const useIcs = (prefs.source === 'ics-url' || prefs.source === 'ics-file')
+    && Array.isArray(cache.events) && cache.events.length > 0;
+
+  blocks.forEach(block => {
+    if (useIcs && block.locked) return;
+    const isForDate = block.date
+      ? block.date.split('T')[0] === dateStr
+      : block.day === dayKey;
+    if (!isForDate) return;
+
+    const top    = timeToTop(block.startTime);
+    const height = blockHeight(block.startTime, block.endTime);
+    const color  = colorMap[block.subjectId] || 'var(--accent)';
+
+    const el = document.createElement('div');
+    el.className = `schedule-block day-view-block${block.locked ? ' locked' : ''}`;
+    el.dataset.blockId = block.id;
+    el.style.cssText = `top:${top}px;height:${Math.max(40,height)}px;background:${color}22;color:${color};border:1px solid ${color}44`;
+    el.innerHTML = `
+      <div class="schedule-block-label" style="white-space:normal;font-weight:600">${block.label || ''}</div>
+      <div class="schedule-block-time" style="font-size:12px">${block.startTime} – ${block.endTime}</div>
+      ${!block.locked ? '<div class="block-resize-handle" data-role="resize"></div>' : ''}`;
+    col.appendChild(el);
+  });
+}
+
+function _placeIcsEventsDay(container, dateObj) {
+  const dateStr = isoDate(dateObj);
+  const prefs   = State.get().schedulePrefs || {};
+  const cache   = scheduleSync.loadCache();
+  const col     = container.querySelector('.schedule-day-col');
+  if (!col) return;
+  col.querySelectorAll('.schedule-block.ics-sync').forEach(b => b.remove());
+  if (prefs.source === 'manual' || !cache.events?.length) return;
+
+  const overrides = scheduleSync.loadOverrides();
+  const events = cache.events
+    .filter(ev => ev.startsAt.slice(0, 10) === dateStr)
+    .map(e => scheduleSync.enrichEvent(e, overrides));
+
+  events.forEach(ev => {
+    const st = dateToHm(ev.startsAt);
+    const en = dateToHm(ev.endsAt);
+    const top    = timeToTop(st);
+    const height = Math.max(48, blockHeight(st, en));
+    const color  = ev.subjectId ? (colorMap[ev.subjectId] || 'var(--accent)') : 'rgba(148,163,184,0.55)';
+
+    const el = document.createElement('div');
+    el.className = 'schedule-block ics-sync locked day-view-block';
+    el.dataset.icsId = ev.id;
+    el.style.cssText = `top:${top}px;height:${height}px;background:${color}18;color:${color};border:1px solid ${color}55;cursor:pointer`;
+    el.innerHTML = `
+      <div class="schedule-block-label" style="white-space:normal;font-weight:600;font-size:13px">${ev.title || 'Termin'}</div>
+      <div class="schedule-block-time" style="font-size:12px;margin-top:2px">${st} – ${en}</div>
+      ${ev.location ? `<div style="font-size:11px;opacity:.8;margin-top:2px">${ev.location}</div>` : ''}`;
+    col.appendChild(el);
+  });
+}
+
+/* ── Sync bar ──────────────────────────────────────────── */
 function _updateScheduleSyncBar(container) {
   const bar = container.querySelector('#schedule-sync-bar');
   if (!bar) return;
@@ -261,7 +370,7 @@ function _updateScheduleSyncBar(container) {
   bar.style.display = 'flex';
   const n = cache.events?.length ?? prefs.eventCount ?? 0;
   const t = prefs.lastSyncedAt
-    ? new Date(prefs.lastSyncedAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+    ? new Date(prefs.lastSyncedAt).toLocaleString('de-DE', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
     : '—';
   const err = prefs.lastError ? ' · <span style="color:var(--danger)">Fehler beim Sync</span>' : '';
   const srcLabel = prefs.source === 'ics-file' ? 'Datei' : 'Live';
@@ -293,45 +402,41 @@ function _updateScheduleSyncBar(container) {
   });
 }
 
-function checkConflict(blocks, block) {
-  const startA = timeToMinutes(block.startTime);
-  const endA   = timeToMinutes(block.endTime);
-  return blocks.some(b => {
-    if (b.id === block.id) return false;
-    const sameDay = block.date ? b.date === block.date : b.day === block.day;
-    if (!sameDay) return false;
-    const startB = timeToMinutes(b.startTime);
-    const endB   = timeToMinutes(b.endTime);
-    return startA < endB && endA > startB;
-  });
-}
-
+/* ── Time indicator ────────────────────────────────────── */
 function _updateTimeIndicator(container, todayIdx) {
-  const old = container.querySelector('.time-indicator');
-  old?.remove();
+  container.querySelector('.time-indicator')?.remove();
   if (todayIdx < 0) return;
-
-  const now    = new Date();
-  const mins   = now.getHours() * 60 + now.getMinutes();
+  const now  = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
   if (mins < START_H*60 || mins > END_H*60) return;
-
-  const top  = (mins - START_H*60) * (HOUR_H/60);
-  const col  = container.querySelectorAll('.schedule-day-col')[todayIdx];
+  const top = (mins - START_H*60) * (HOUR_H/60);
+  const col = container.querySelectorAll('.schedule-day-col')[todayIdx];
   if (!col) return;
-
   const ind = document.createElement('div');
   ind.className = 'time-indicator';
   ind.style.top = `${top}px`;
   col.appendChild(ind);
 }
 
-function _bindEvents(container, weekDays, subjects) {
+/* ══════════════════════════════════════════════════════════
+   WEEK VIEW EVENTS
+══════════════════════════════════════════════════════════ */
+function _bindWeekEvents(container, weekDays, subjects) {
+  // Toggle
+  container.querySelector('#btn-view-week')?.addEventListener('click', () => {});
+  container.querySelector('#btn-view-day')?.addEventListener('click', () => {
+    State.updateSettings({ scheduleViewMode: 'day' });
+    _dayDate = new Date().toISOString().slice(0, 10);
+    renderSchedule(container);
+  });
+
+  // Week nav
   container.querySelector('#btn-week-prev')?.addEventListener('click', () => { _weekOffset--; renderSchedule(container); });
   container.querySelector('#btn-week-next')?.addEventListener('click', () => { _weekOffset++; renderSchedule(container); });
   container.querySelector('#btn-week-today')?.addEventListener('click', () => { _weekOffset = 0; renderSchedule(container); });
   container.querySelector('#btn-add-block')?.addEventListener('click', () => openBlockModal(null, subjects, weekDays, container));
 
-  /* Click on existing block */
+  // Click on existing block / ICS event
   container.addEventListener('click', e => {
     const icsEl = e.target.closest('.schedule-block.ics-sync');
     if (icsEl?.dataset?.icsId) {
@@ -340,12 +445,12 @@ function _bindEvents(container, weekDays, subjects) {
     }
     const block = e.target.closest('.schedule-block');
     if (!block || e.target.closest('[data-role="resize"]')) return;
-    const id = block.dataset.blockId;
+    const id   = block.dataset.blockId;
     const data = State.getBlocks().find(b => b.id === id);
     if (data) openBlockModal(data, subjects, weekDays, container);
   });
 
-  /* Drag to move */
+  // Drag to move
   container.addEventListener('mousedown', e => {
     const block = e.target.closest('.schedule-block:not(.locked)');
     if (!block || e.target.closest('[data-role="resize"]')) return;
@@ -357,7 +462,7 @@ function _bindEvents(container, weekDays, subjects) {
     block.classList.add('dragging');
   });
 
-  /* Drag to resize */
+  // Drag to resize
   container.addEventListener('mousedown', e => {
     const handle = e.target.closest('[data-role="resize"]');
     if (!handle) return;
@@ -379,15 +484,13 @@ function _bindEvents(container, weekDays, subjects) {
       const newStart = snapMinutes(timeToMinutes(_dragState.origStart) + deltaMin);
       const dur = timeToMinutes(_dragState.origEnd) - timeToMinutes(_dragState.origStart);
       const newEnd = newStart + dur;
-      if (newStart >= START_H*60 && newEnd <= END_H*60) {
+      if (newStart >= START_H*60 && newEnd <= END_H*60)
         State.updateBlock(_dragState.id, { startTime: minutesToTime(newStart), endTime: minutesToTime(newEnd) });
-      }
     } else {
       const newEnd = snapMinutes(timeToMinutes(_dragState.origEnd) + deltaMin);
       const minEnd = timeToMinutes(_dragState.origStart) + 15;
-      if (newEnd > minEnd && newEnd <= END_H*60) {
+      if (newEnd > minEnd && newEnd <= END_H*60)
         State.updateBlock(_dragState.id, { endTime: minutesToTime(newEnd) });
-      }
     }
     _placeBlocks(container, weekDays);
     _placeIcsEvents(container, weekDays);
@@ -399,7 +502,7 @@ function _bindEvents(container, weekDays, subjects) {
     _dragState = null;
   });
 
-  /* Click on empty col to add block */
+  // Dblclick on empty col to add block
   container.querySelectorAll('.schedule-day-col').forEach((col, di) => {
     col.addEventListener('dblclick', e => {
       if (e.target.closest('.schedule-block')) return;
@@ -417,13 +520,147 @@ function _bindEvents(container, weekDays, subjects) {
   });
 }
 
-function openIcsSubjectModal(icsId, subjects, container) {
+/* ══════════════════════════════════════════════════════════
+   DAY VIEW EVENTS
+══════════════════════════════════════════════════════════ */
+function _bindDayEvents(container, dateObj, subjects) {
+  // Toggle back to week
+  container.querySelector('#btn-view-week')?.addEventListener('click', () => {
+    State.updateSettings({ scheduleViewMode: 'week' });
+    // Compute weekOffset for the week containing _dayDate
+    const today   = getWeekMonday();
+    const target  = getWeekMonday(dateObj);
+    _weekOffset   = Math.round((target - today) / (7 * 86400000));
+    renderSchedule(container);
+  });
+  container.querySelector('#btn-view-day')?.addEventListener('click', () => {});
+
+  // Day navigation
+  container.querySelector('#btn-day-prev')?.addEventListener('click', () => {
+    const d = new Date(getDayDate() + 'T12:00:00');
+    d.setDate(d.getDate() - 1);
+    _dayDate = d.toISOString().slice(0, 10);
+    renderSchedule(container);
+  });
+  container.querySelector('#btn-day-next')?.addEventListener('click', () => {
+    const d = new Date(getDayDate() + 'T12:00:00');
+    d.setDate(d.getDate() + 1);
+    _dayDate = d.toISOString().slice(0, 10);
+    renderSchedule(container);
+  });
+  container.querySelector('#btn-day-today')?.addEventListener('click', () => {
+    _dayDate = new Date().toISOString().slice(0, 10);
+    renderSchedule(container);
+  });
+
+  container.querySelector('#btn-add-block')?.addEventListener('click', () => {
+    openBlockModal({ date: getDayDate() }, subjects, [dateObj], container, true);
+  });
+
+  // Click on ICS event → detail modal
+  const col = container.querySelector('.schedule-day-col');
+  col?.addEventListener('click', e => {
+    const icsEl = e.target.closest('.schedule-block.ics-sync');
+    if (icsEl?.dataset?.icsId) {
+      openIcsDayDetailModal(icsEl.dataset.icsId, subjects, container);
+      return;
+    }
+    const block = e.target.closest('.schedule-block');
+    if (!block || e.target.closest('[data-role="resize"]')) return;
+    const id   = block.dataset.blockId;
+    const data = State.getBlocks().find(b => b.id === id);
+    if (data) openBlockModal(data, subjects, [dateObj], container);
+  });
+
+  // Dblclick on empty col to add block
+  col?.addEventListener('dblclick', e => {
+    if (e.target.closest('.schedule-block')) return;
+    const rect = col.getBoundingClientRect();
+    const relY = e.clientY - rect.top + col.closest('.schedule-grid-wrap').scrollTop;
+    const startMins = snapMinutes(relY / (HOUR_H/60) + START_H*60);
+    const endMins   = startMins + 90;
+    const prefill = {
+      startTime: minutesToTime(Math.max(START_H*60, Math.min(startMins, END_H*60-90))),
+      endTime:   minutesToTime(Math.min(END_H*60, endMins)),
+      date: getDayDate()
+    };
+    openBlockModal(prefill, subjects, [dateObj], container, true);
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   MODALS
+══════════════════════════════════════════════════════════ */
+function openIcsDayDetailModal(icsId, subjects, container) {
   const cache = scheduleSync.loadCache();
   const ev = (cache.events || []).find(x => x.id === icsId);
   if (!ev) return;
+
+  const overrides  = scheduleSync.loadOverrides();
+  const inferred   = scheduleSync.inferSubjectId(ev.title, ev.description);
+  const subjectId  = overrides[icsId] || inferred || null;
+  const subj       = subjects.find(s => s.id === subjectId);
+
+  const startDate  = new Date(ev.startsAt);
+  const endDate    = new Date(ev.endsAt);
+  const durMs      = endDate - startDate;
+  const durH       = Math.floor(durMs / 3600000);
+  const durM       = Math.round((durMs % 3600000) / 60000);
+  const durLabel   = durH > 0 ? (durM > 0 ? `${durH}h ${durM}m` : `${durH}h`) : `${durM}m`;
+  const dateLabel  = startDate.toLocaleDateString('de-DE', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const timeLabel  = `${dateToHm(ev.startsAt)} – ${dateToHm(ev.endsAt)} (${durLabel})`;
+
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <i data-lucide="calendar" style="width:16px;height:16px;color:var(--text-tertiary);flex-shrink:0"></i>
+        <span style="font-size:14px;color:var(--text-secondary)">${dateLabel}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <i data-lucide="clock" style="width:16px;height:16px;color:var(--text-tertiary);flex-shrink:0"></i>
+        <span style="font-size:14px;color:var(--text-secondary)">${timeLabel}</span>
+      </div>
+      ${ev.location ? `
+      <div style="display:flex;align-items:center;gap:10px">
+        <i data-lucide="map-pin" style="width:16px;height:16px;color:var(--text-tertiary);flex-shrink:0"></i>
+        <span style="font-size:14px;color:var(--text-secondary)">${ev.location}</span>
+      </div>` : ''}
+      ${subj ? `
+      <div>
+        <span class="badge" style="background:var(--subject-${subj.id})22;color:var(--subject-${subj.id});padding:4px 12px;font-size:12px;border-radius:var(--r-md)">
+          ${subj.name}
+        </span>
+      </div>` : ''}
+    </div>`;
+
+  const modal = Modal.open({
+    title: ev.title || 'Termin',
+    body,
+    footer: `
+      ${subj ? `<button class="btn btn-primary btn-sm" id="ics-d-session">Session starten</button>` : ''}
+      <button class="btn btn-ghost btn-sm" id="ics-d-map">Fach zuordnen</button>
+      <button class="btn btn-ghost btn-sm" id="ics-d-close">Schließen</button>`
+  });
+  renderIcons(modal.el);
+
+  modal.el.querySelector('#ics-d-close')?.addEventListener('click', () => modal.close());
+  modal.el.querySelector('#ics-d-session')?.addEventListener('click', () => {
+    modal.close();
+    SessionTracker.openNewSession(subjectId);
+  });
+  modal.el.querySelector('#ics-d-map')?.addEventListener('click', () => {
+    modal.close();
+    openIcsSubjectModal(icsId, subjects, container);
+  });
+}
+
+function openIcsSubjectModal(icsId, subjects, container) {
+  const cache    = scheduleSync.loadCache();
+  const ev       = (cache.events || []).find(x => x.id === icsId);
+  if (!ev) return;
   const overrides = scheduleSync.loadOverrides();
-  const inferred = scheduleSync.inferSubjectId(ev.title, ev.description);
-  const cur = overrides[icsId] || inferred || '';
+  const inferred  = scheduleSync.inferSubjectId(ev.title, ev.description);
+  const cur       = overrides[icsId] || inferred || '';
   const body = `
     <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">${ev.title}</p>
     <div class="field">
@@ -497,16 +734,16 @@ function openBlockModal(block, subjects, weekDays, container, isNew = !block?.id
   modal.el.querySelector('#blk-cancel')?.addEventListener('click', () => modal.close());
   modal.el.querySelector('#blk-delete')?.addEventListener('click', () => {
     State.removeBlock(block.id);
-    _placeBlocks(container, weekDays);
     modal.close();
     Toast.success('Lernblock gelöscht');
+    renderSchedule(container);
   });
   modal.el.querySelector('#blk-save')?.addEventListener('click', () => {
-    const subjectId  = modal.el.querySelector('#blk-subject')?.value;
-    const label      = modal.el.querySelector('#blk-label')?.value.trim();
-    const startTime  = modal.el.querySelector('#blk-start')?.value;
-    const endTime    = modal.el.querySelector('#blk-end')?.value;
-    const dayEl      = modal.el.querySelector('#blk-day');
+    const subjectId = modal.el.querySelector('#blk-subject')?.value;
+    const label     = modal.el.querySelector('#blk-label')?.value.trim();
+    const startTime = modal.el.querySelector('#blk-start')?.value;
+    const endTime   = modal.el.querySelector('#blk-end')?.value;
+    const dayEl     = modal.el.querySelector('#blk-day');
     if (!startTime || !endTime || startTime >= endTime) {
       Toast.error('Ungültige Zeit', 'Endzeit muss nach Startzeit liegen.');
       return;
@@ -522,7 +759,20 @@ function openBlockModal(block, subjects, weekDays, container, isNew = !block?.id
       State.updateBlock(block.id, { subjectId, label, startTime, endTime });
       Toast.success('Lernblock aktualisiert');
     }
-    _placeBlocks(container, weekDays);
     modal.close();
+    renderSchedule(container);
+  });
+}
+
+function checkConflict(blocks, block) {
+  const startA = timeToMinutes(block.startTime);
+  const endA   = timeToMinutes(block.endTime);
+  return blocks.some(b => {
+    if (b.id === block.id) return false;
+    const sameDay = block.date ? b.date === block.date : b.day === block.day;
+    if (!sameDay) return false;
+    const startB = timeToMinutes(b.startTime);
+    const endB   = timeToMinutes(b.endTime);
+    return startA < endB && endA > startB;
   });
 }

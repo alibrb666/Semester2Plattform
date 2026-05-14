@@ -7,6 +7,7 @@ import { renderHeatmap } from '../components/heatmap.js';
 import { Modal } from '../components/modal.js';
 import { Toast } from '../components/toast.js';
 import { Storage } from '../storage.js';
+import { openTodoModalFromDash } from './todos.js';
 
 export function renderDashboard(container) {
   const state    = State.get();
@@ -37,6 +38,7 @@ export function renderDashboard(container) {
   const isSunday = new Date().getDay() === 0;
   const hasReviewToday = State.getReviews().some(r => isSameDay(new Date(r.date), new Date()));
 
+  const todos         = State.getTodos();
   const showDemoBanner = State.hasDemoEntries();
 
   container.innerHTML = `
@@ -169,6 +171,22 @@ export function renderDashboard(container) {
           </div>`).join('')}
         </div>
       </section>` : ''}
+
+      <!-- Todos -->
+      <section aria-label="Offene Todos">
+        <div class="section-header">
+          <div class="section-title">Offene Todos</div>
+          <a href="#todos" class="btn btn-ghost btn-sm" style="font-size:12px">Alle ansehen →</a>
+        </div>
+        ${_buildDashTodos(todos, subjects)}
+        <div class="dash-todo-quick">
+          <input class="input" id="dash-todo-input" type="text"
+            placeholder="Schnell hinzufügen…" autocomplete="off" />
+          <button class="btn btn-secondary btn-sm" id="dash-todo-add" aria-label="Hinzufügen">
+            <i data-lucide="plus"></i>
+          </button>
+        </div>
+      </section>
     </div>`;
 
   renderIcons(container);
@@ -238,8 +256,94 @@ export function renderDashboard(container) {
   /* Weekly review */
   container.querySelector('#btn-review')?.addEventListener('click', () => openReviewModal());
 
+  /* Todo quick-add */
+  const dashTodoInput = container.querySelector('#dash-todo-input');
+  container.querySelector('#dash-todo-add')?.addEventListener('click', () => {
+    const title = dashTodoInput?.value.trim();
+    if (!title) { dashTodoInput?.focus(); return; }
+    State.addTodo({ id: uuid(), title, subjectId: null, priority: 'medium', dueDate: null, note: '',
+      done: false, doneAt: null, createdAt: new Date().toISOString() });
+    Storage.saveNow(State.get());
+    Toast.success('Todo hinzugefügt', title);
+    renderDashboard(container);
+  });
+  dashTodoInput?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') container.querySelector('#dash-todo-add')?.click();
+  });
+
+  /* Todo item click */
+  container.querySelectorAll('.dash-todo-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.todoId;
+      const todo = State.getTodos().find(t => t.id === id);
+      if (todo) {
+        openTodoModalFromDash(todo, subjects, container);
+        setTimeout(() => renderDashboard(container), 100);
+      }
+    });
+  });
+  container.querySelectorAll('.dash-todo-check').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = el.dataset.todoCheck;
+      const todo = State.getTodos().find(t => t.id === id);
+      if (!todo) return;
+      State.updateTodo(id, { done: true, doneAt: new Date().toISOString() });
+      Storage.saveNow(State.get());
+      Toast.show({ title: 'Erledigt ✓', msg: todo.title, type: 'success', duration: 5000,
+        action: { label: 'Rückgängig', handler: () => {
+          State.updateTodo(id, { done: false, doneAt: null });
+          Storage.saveNow(State.get());
+          renderDashboard(container);
+        }}
+      });
+      renderDashboard(container);
+    });
+  });
+
   /* Refresh on session saved */
   document.addEventListener('session:saved', () => renderDashboard(container), { once: true });
+}
+
+function _buildDashTodos(todos, subjects) {
+  const todayStr    = new Date().toISOString().slice(0, 10);
+  const tomorrowStr = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const open = todos.filter(t => !t.done);
+
+  const sorted = [...open].sort((a, b) => {
+    const ao = a.dueDate && a.dueDate < todayStr;
+    const bo = b.dueDate && b.dueDate < todayStr;
+    if (ao !== bo) return ao ? -1 : 1;
+    const at = a.dueDate === todayStr, bt = b.dueDate === todayStr;
+    if (at !== bt) return at ? -1 : 1;
+    const po = { high: 0, medium: 1, low: 2 };
+    return (po[a.priority] ?? 1) - (po[b.priority] ?? 1);
+  }).slice(0, 5);
+
+  if (!sorted.length) {
+    return `<div style="font-size:13px;color:var(--text-tertiary);padding:12px 0">Keine offenen Aufgaben ✓</div>`;
+  }
+
+  return `<div class="dash-todo-list">
+    ${sorted.map(t => {
+      const subj = subjects.find(s => s.id === t.subjectId);
+      let dueLabel = '', dueClass = 'soon';
+      if (t.dueDate) {
+        if (t.dueDate < todayStr)         { dueLabel = 'Überfällig'; dueClass = 'overdue'; }
+        else if (t.dueDate === todayStr)  { dueLabel = 'heute'; dueClass = 'today'; }
+        else if (t.dueDate === tomorrowStr){ dueLabel = 'morgen'; dueClass = 'soon'; }
+        else { dueLabel = new Date(t.dueDate+'T12:00:00').toLocaleDateString('de-DE',{day:'numeric',month:'short'}); dueClass = 'soon'; }
+      }
+      return `<div class="dash-todo-item" data-todo-id="${t.id}" role="button" tabindex="0">
+        <div class="dash-todo-check todo-checkbox" data-todo-check="${t.id}" role="checkbox" aria-checked="false" tabindex="0"></div>
+        <div class="dash-todo-body">
+          <span class="dash-todo-title">${t.title}</span>
+          ${subj ? `<span class="badge" style="background:var(--subject-${subj.id})22;color:var(--subject-${subj.id});font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px">${subj.name.split(' ')[0]}</span>` : ''}
+        </div>
+        ${dueLabel ? `<span class="todo-due ${dueClass}" style="font-size:11px;white-space:nowrap">${dueLabel}</span>` : ''}
+      </div>`;
+    }).join('')}
+  </div>`;
 }
 
 function buildRecentSessions(sessions, subjects, limit = 5) {
