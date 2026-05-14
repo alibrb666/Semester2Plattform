@@ -28,6 +28,7 @@ let _sessionSavedDocBound = false;
 let _actionDelegationBound = false;
 
 function refreshCurrentView() {
+  console.log('[DEBUG] Refreshing current view');
   const route = Router.current() || 'dashboard';
   const view = document.getElementById('view-root');
   if (!view) return;
@@ -104,8 +105,10 @@ const DEFAULT_STATE = {
 
 /* ── Boot ───────────────────────────────────────────────────── */
 async function boot() {
+  console.log('[DEBUG] Boot function started');
   try {
     const stored = Storage.load();
+    console.log('[DEBUG] Loaded state:', stored);
     if (!stored) {
       State.init(JSON.parse(JSON.stringify(DEFAULT_STATE)));
       launchApp();
@@ -115,8 +118,8 @@ async function boot() {
       launchApp();
     }
 
-    /* Lucide loads after the module (see index.html); refresh icons when it appears. */
     void waitForLucide(15000).then(() => {
+      console.log('[DEBUG] Lucide icons loaded');
       const vr = document.getElementById('view-root');
       if (vr) renderIcons(vr);
       renderIcons(document.getElementById('sidebar-nav'));

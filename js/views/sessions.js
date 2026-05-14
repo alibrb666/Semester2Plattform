@@ -270,7 +270,7 @@ function _showDetailModal(s, sub, d, container, onRefresh) {
                   <span class="num-display">${formatDuration(Math.round(sg.seconds || 0))}</span>
                 </div>`).join('')}
               </div>
-            </details>` : ''}
+            </details>` : ''
             return `<div class="detail-task-wrap">
             <div class="detail-task-row${done ? ' done' : ''}">
               <span class="detail-task-status">${done ? '✓' : '○'}</span>
