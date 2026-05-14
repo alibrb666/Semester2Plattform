@@ -86,16 +86,34 @@ export function renderSettings(container) {
                 <label for="sched-ics-url">ICS-URL deines Kalenders</label>
                 <input class="input" id="sched-ics-url" type="url" placeholder="https://calendar.google.com/calendar/ical/…" value="" />
               </div>
-              <details class="sched-help-acc" style="margin-top:8px">
-                <summary style="cursor:pointer;font-size:13px;color:var(--text-secondary)">Wie bekomme ich die URL?</summary>
-                <div style="font-size:12px;color:var(--text-tertiary);margin-top:8px;line-height:1.55">
-                  <p><strong>Google Calendar:</strong> Kalendereinstellungen → „Privatadresse im iCal-Format“ kopieren (nicht die öffentliche Adresse).</p>
-                  <p><strong>DHBW Rapla:</strong> In der Wochenansicht eine .ics-URL verwenden oder „Kalender abonnieren“ / Rechtsklick → Link der Abonnement-URL.</p>
+              <details class=”sched-help-acc” style=”margin-top:8px”>
+                <summary style=”cursor:pointer;font-size:13px;color:var(--text-secondary)”>Wie bekomme ich die URL?</summary>
+                <div style=”font-size:12px;color:var(--text-tertiary);margin-top:8px;line-height:1.55”>
+                  <p><strong>Google Calendar:</strong> Nur die PRIVATE Adresse funktioniert (nicht die öffentliche). Einstellungen → Kalender → ganz nach unten → „Privatadresse im iCal-Format”. Die URL muss mit <code>secret=</code> enden.</p>
+                  <p style=”margin-top:6px”><strong>DHBW Rapla:</strong> In der Wochenansicht eine .ics-URL verwenden oder „Kalender abonnieren” / Rechtsklick → Link der Abonnement-URL.</p>
+                  <p style=”margin-top:6px”><strong>Wiederkehrende Termine</strong> werden automatisch für ±6 Monate expandiert. Falls Termine fehlen → ICS-Datei direkt hochladen (Google Calendar → Einstellungen → Import &amp; Export → Exportieren).</p>
+                  <p style=”margin-top:6px”><strong>CORS-Problem:</strong> Google blockiert direkte Browser-Anfragen. Die App versucht automatisch 3 verschiedene Proxy-Server. Wenn alle scheitern → Datei-Upload nutzen.</p>
                 </div>
               </details>
-              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
-                <button type="button" class="btn btn-primary btn-sm" id="sched-btn-sync">Verbinden &amp; jetzt synchronisieren</button>
-                <button type="button" class="btn btn-ghost btn-sm" id="sched-btn-disconnect">Verbindung trennen</button>
+              <div style=”display:flex;flex-wrap:wrap;gap:8px;margin-top:12px”>
+                <button type=”button” class=”btn btn-primary btn-sm” id=”sched-btn-sync”>Verbinden &amp; jetzt synchronisieren</button>
+                <button type=”button” class=”btn btn-ghost btn-sm” id=”sched-btn-disconnect”>Verbindung trennen</button>
+              </div>
+              <div class=”field” style=”margin-top:12px” id=”sched-interval-wrap”>
+                <label for=”sched-interval”>Automatische Synchronisation alle</label>
+                <div style=”display:flex;align-items:center;gap:12px”>
+                  <select class=”select” id=”sched-interval” style=”max-width:160px”>
+                    <option value=”15”>15 Minuten</option>
+                    <option value=”30”>30 Minuten</option>
+                    <option value=”60”>1 Stunde</option>
+                    <option value=”180”>3 Stunden</option>
+                    <option value=”360”>6 Stunden</option>
+                    <option value=”720”>12 Stunden</option>
+                    <option value=”1440”>1 mal täglich</option>
+                  </select>
+                  <button type=”button” class=”btn btn-secondary btn-sm” id=”sched-btn-sync-now”>Jetzt synchronisieren</button>
+                </div>
+                <div class=”field-hint” id=”sched-last-sync” style=”margin-top:6px;font-size:12px;color:var(--text-tertiary)”></div>
               </div>
             </div>
             <div id="sched-panel-file" style="display:none">
@@ -425,6 +443,56 @@ function _bindSettings(container, subjects) {
       Toast.error('ICS ungültig', err.message || String(err));
     }
     e.target.value = '';
+  });
+
+  /* Intervall-Selector */
+  const intervalSel = container.querySelector('#sched-interval');
+  if (intervalSel) {
+    const cur = State.get().schedulePrefs?.syncIntervalMinutes || 60;
+    intervalSel.value = String(cur);
+    intervalSel.addEventListener('change', () => {
+      State.patchSchedulePrefs({ syncIntervalMinutes: parseInt(intervalSel.value) });
+      Storage.saveNow(State.get());
+      Toast.success('Sync-Intervall gespeichert');
+    });
+  }
+
+  function updateLastSyncLabel() {
+    const el = container.querySelector('#sched-last-sync');
+    if (!el) return;
+    const sp = State.get().schedulePrefs || {};
+    if (!sp.lastSyncedAt) { el.textContent = 'Noch nie synchronisiert'; return; }
+    const d = new Date(sp.lastSyncedAt);
+    el.textContent = `Zuletzt: ${d.toLocaleDateString('de-DE')} um ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} · ${sp.eventCount || 0} Termine`;
+  }
+  updateLastSyncLabel();
+
+  /* Jetzt synchronisieren Button */
+  container.querySelector('#sched-btn-sync-now')?.addEventListener('click', async () => {
+    const url = State.get().schedulePrefs?.icsUrl?.trim();
+    if (!url) { Toast.warning('Keine URL', 'Bitte erst eine ICS-URL eintragen und verbinden.'); return; }
+    const btn = container.querySelector('#sched-btn-sync-now');
+    if (btn) { btn.disabled = true; btn.textContent = 'Synchronisiere…'; }
+    try {
+      const txt = await scheduleSync.fetchIcsText(url);
+      const evs = scheduleSync.parseIcsToEvents(txt, 'ics-url');
+      scheduleSync.saveCache(evs, new Date().toISOString());
+      State.patchSchedulePrefs({
+        lastSyncedAt: new Date().toISOString(),
+        lastError: null,
+        eventCount: evs.length
+      });
+      Storage.saveNow(State.get());
+      Toast.success('Synchronisiert', `${evs.length} Termine geladen`);
+      updateLastSyncLabel();
+      updateSchedStatus();
+    } catch {
+      State.patchSchedulePrefs({ lastError: 'SYNC' });
+      Storage.saveNow(State.get());
+      Toast.error('Sync fehlgeschlagen', 'CORS möglich — nutze ICS-Datei-Upload als Fallback.');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Jetzt synchronisieren'; }
+    }
   });
 
   refreshSchedulePanels();

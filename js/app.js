@@ -99,7 +99,8 @@ const DEFAULT_STATE = {
     icsFileName: null,
     lastSyncedAt: null,
     lastError: null,
-    eventCount: 0
+    eventCount: 0,
+    syncIntervalMinutes: 60
   }
 };
 
@@ -224,7 +225,8 @@ async function maybeRefreshIcsSchedule() {
     const scheduleSync = await import('./scheduleSync.js');
     const prefs = State.get().schedulePrefs;
     if (!prefs || prefs.source !== 'ics-url' || !prefs.icsUrl?.trim()) return;
-    if (!scheduleSync.shouldAutoSync(prefs.lastSyncedAt)) return;
+    const intervalMinutes = prefs.syncIntervalMinutes || 360;
+    if (!scheduleSync.shouldAutoSync(prefs.lastSyncedAt, intervalMinutes)) return;
     const txt = await scheduleSync.fetchIcsText(prefs.icsUrl.trim());
     const evs = scheduleSync.parseIcsToEvents(txt, 'ics-url');
     scheduleSync.saveCache(evs, new Date().toISOString());

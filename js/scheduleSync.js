@@ -66,25 +66,39 @@ export function enrichEvent(ev, overrides) {
   return { ...ev, subjectId: sid || null, color };
 }
 
+const CORS_PROXIES = [
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  url => `https://cors-anywhere.herokuapp.com/${url}`,
+];
+
 export async function fetchIcsText(url) {
-  let text;
+  // 1. Direkter Fetch
   try {
     const r = await fetch(url, { mode: 'cors', cache: 'no-store' });
-    if (r.ok) text = await r.text();
-  } catch (_) { /* CORS */ }
-  if (!text) {
+    if (r.ok) {
+      const text = await r.text();
+      if (text.includes('BEGIN:VCALENDAR')) return text;
+    }
+  } catch (_) {}
+
+  // 2. Proxy-Fallback-Kette
+  for (const proxyFn of CORS_PROXIES) {
     try {
-      const proxied = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-      const r2 = await fetch(proxied, { cache: 'no-store' });
-      if (r2.ok) text = await r2.text();
+      const r = await fetch(proxyFn(url), {
+        cache: 'no-store',
+        headers: { 'Accept': 'text/calendar, text/plain, */*' }
+      });
+      if (r.ok) {
+        const text = await r.text();
+        if (text.includes('BEGIN:VCALENDAR')) return text;
+      }
     } catch (_) {}
   }
-  if (!text) {
-    const err = new Error('FETCH_FAILED');
-    err.code = 'FETCH_FAILED';
-    throw err;
-  }
-  return text;
+
+  const err = new Error('FETCH_FAILED');
+  err.code = 'FETCH_FAILED';
+  throw err;
 }
 
 export function parseIcsToEvents(icsText, sourceTag) {
@@ -93,30 +107,84 @@ export function parseIcsToEvents(icsText, sourceTag) {
     e.code = 'ICAL_MISSING';
     throw e;
   }
+
   const jcal = ICAL.parse(icsText);
-  const root = new ICAL.Component(jcal);
+  const root  = new ICAL.Component(jcal);
+  const out   = [];
+
+  // Zeitfenster: 6 Monate zurück bis 6 Monate voraus
+  const rangeStart = ICAL.Time.now();
+  rangeStart.addDuration(ICAL.Duration.fromSeconds(-180 * 24 * 3600));
+  const rangeEnd = ICAL.Time.now();
+  rangeEnd.addDuration(ICAL.Duration.fromSeconds(180 * 24 * 3600));
+
   const vevents = root.getAllSubcomponents('vevent');
-  const out = [];
+
   for (const vc of vevents) {
     try {
       const ev = new ICAL.Event(vc);
-      if (!ev.startDate) continue;
-      const start = ev.startDate.toJSDate();
-      const end = ev.endDate ? ev.endDate.toJSDate() : new Date(start.getTime() + 60 * 60 * 1000);
-      const uid = (ev.uid && String(ev.uid)) || `${start.toISOString()}-${ev.summary || 'evt'}`;
-      out.push({
-        id: uid,
-        title: ev.summary || 'Termin',
-        startsAt: start.toISOString(),
-        endsAt: end.toISOString(),
-        location: ev.location || '',
-        description: String(vc.getFirstPropertyValue('description') || ''),
-        source: sourceTag || 'ics-url',
-        subjectId: null,
-        color: null
-      });
-    } catch (_) { /* skip broken */ }
+
+      if (ev.isRecurring()) {
+        const expand = new ICAL.RecurExpansion({
+          component: vc,
+          dtstart: ev.startDate
+        });
+
+        let next;
+        let count = 0;
+        const MAX = 200;
+
+        while ((next = expand.next()) && count < MAX) {
+          count++;
+          if (next.compare(rangeEnd) > 0) break;
+          if (next.compare(rangeStart) < 0) continue;
+
+          const occurrence = ev.getOccurrenceDetails(next);
+          const start = occurrence.startDate.toJSDate();
+          const end   = occurrence.endDate
+            ? occurrence.endDate.toJSDate()
+            : new Date(start.getTime() + 60 * 60 * 1000);
+
+          out.push({
+            id: `${ev.uid}-${next.toICALString()}`,
+            title: ev.summary || 'Termin',
+            startsAt: start.toISOString(),
+            endsAt:   end.toISOString(),
+            location: ev.location || '',
+            description: String(vc.getFirstPropertyValue('description') || ''),
+            source: sourceTag || 'ics-url',
+            subjectId: null,
+            color: null
+          });
+        }
+      } else {
+        if (!ev.startDate) continue;
+        const start = ev.startDate.toJSDate();
+        const end   = ev.endDate
+          ? ev.endDate.toJSDate()
+          : new Date(start.getTime() + 60 * 60 * 1000);
+
+        const startIcal = ev.startDate;
+        if (startIcal.compare(rangeEnd) > 0) continue;
+        if (ev.endDate && ev.endDate.compare(rangeStart) < 0) continue;
+
+        out.push({
+          id: String(ev.uid || `${start.toISOString()}-${ev.summary}`),
+          title: ev.summary || 'Termin',
+          startsAt: start.toISOString(),
+          endsAt:   end.toISOString(),
+          location: ev.location || '',
+          description: String(vc.getFirstPropertyValue('description') || ''),
+          source: sourceTag || 'ics-url',
+          subjectId: null,
+          color: null
+        });
+      }
+    } catch (err) {
+      console.warn('[scheduleSync] Überspringe Event:', err);
+    }
   }
+
   return out;
 }
 
@@ -129,9 +197,8 @@ export function filterEventsForRange(events, rangeStart, rangeEnd) {
   });
 }
 
-const SIX_H = 6 * 60 * 60 * 1000;
-
-export function shouldAutoSync(lastSyncedAt) {
+export function shouldAutoSync(lastSyncedAt, intervalMinutes = 360) {
   if (!lastSyncedAt) return true;
-  return Date.now() - new Date(lastSyncedAt).getTime() > SIX_H;
+  const intervalMs = intervalMinutes * 60 * 1000;
+  return Date.now() - new Date(lastSyncedAt).getTime() > intervalMs;
 }

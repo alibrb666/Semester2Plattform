@@ -92,6 +92,7 @@ export const State = {
         lastSyncedAt: null,
         lastError: null,
         eventCount: 0,
+        syncIntervalMinutes: 60,
         ...(st.schedulePrefs || {}),
         ...patch
       }
