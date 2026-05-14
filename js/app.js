@@ -60,17 +60,7 @@ function refreshCurrentView() {
 
 /* ── Default state ─────────────────────────────────────────── */
 function defaultScheduleBlocks() {
-  const mk = (id, subjectId, day, s, e, label) =>
-    ({ id, subjectId, day, startTime:s, endTime:e, type:'lecture', locked:true, label });
-  return [
-    mk('sb-1','klr',  'monday',    '08:30','12:00','VL KLR'),
-    mk('sb-2','prog', 'monday',    '15:30','20:00','Prog II'),
-    mk('sb-3','kbs',  'tuesday',   '08:30','13:15','KBS / IT'),
-    mk('sb-4','math', 'wednesday', '09:30','13:00','Mathe'),
-    mk('sb-5','prog', 'wednesday', '14:00','17:45','Programmierkonzepte'),
-    mk('sb-6','klr',  'thursday',  '09:00','12:45','FiBu'),
-    mk('sb-7','kbs',  'friday',    '08:30','12:00','Systemanalyse'),
-  ];
+  return [];
 }
 
 const DEFAULT_STATE = {

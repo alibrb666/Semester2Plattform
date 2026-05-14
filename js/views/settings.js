@@ -462,6 +462,7 @@ function _bindSettings(container, subjects) {
       const txt = await file.text();
       const events = scheduleSync.parseIcsToEvents(txt, 'ics-file');
       scheduleSync.saveCache(events, new Date().toISOString());
+      State.set({ scheduleBlocks: State.getBlocks().filter(b => !b.locked) });
       State.patchSchedulePrefs({
         source: 'ics-file',
         icsFileName: file.name,
