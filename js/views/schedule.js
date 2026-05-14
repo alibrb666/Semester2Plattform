@@ -17,6 +17,26 @@ let _dragState   = null;
 let _scheduleMinuteTimer = null;
 let _viewMode = 'week';   // 'week' | 'day'
 let _dayDate  = null;     // ISO string for day view
+let _dayStartH = START_H; // dynamic compact range for day view
+let _dayEndH   = END_H;
+
+function getDayTimeRange(events, blocks) {
+  if (!events.length && !blocks.length) return { start: 8, end: 18 };
+  const allItems = [...events, ...blocks];
+  const starts = allItems.map(e => {
+    if (e.startsAt) { const d = new Date(e.startsAt); return d.getHours() + d.getMinutes() / 60; }
+    if (e.startTime) return timeToMinutes(e.startTime) / 60;
+    return 8;
+  });
+  const ends = allItems.map(e => {
+    if (e.endsAt) { const d = new Date(e.endsAt); return d.getHours() + d.getMinutes() / 60; }
+    if (e.endTime) return timeToMinutes(e.endTime) / 60;
+    return 18;
+  });
+  const minH = Math.floor(Math.min(...starts)) - 1;
+  const maxH = Math.ceil(Math.max(...ends)) + 1;
+  return { start: Math.max(6, minH), end: Math.min(22, maxH) };
+}
 
 function getColor(subjectId) {
   if (!subjectId) return 'rgba(148,163,184,0.55)';
@@ -25,9 +45,11 @@ function getColor(subjectId) {
 }
 
 /* ── Time helpers ──────────────────────────────────────── */
-function timeToTop(timeStr) { return (timeToMinutes(timeStr) - START_H * 60) * (HOUR_H / 60); }
-function topToTime(px)      { return minutesToTime(snapMinutes(Math.round(px / (HOUR_H/60)) + START_H * 60)); }
-function blockHeight(s, e)  { return (timeToMinutes(e) - timeToMinutes(s)) * (HOUR_H / 60); }
+function timeToTop(timeStr)        { return (timeToMinutes(timeStr) - START_H * 60) * (HOUR_H / 60); }
+function timeToTopDay(timeStr)     { return (timeToMinutes(timeStr) - _dayStartH * 60) * (HOUR_H / 60); }
+function topToTime(px)             { return minutesToTime(snapMinutes(Math.round(px / (HOUR_H/60)) + START_H * 60)); }
+function topToTimeDay(px)          { return minutesToTime(snapMinutes(Math.round(px / (HOUR_H/60)) + _dayStartH * 60)); }
+function blockHeight(s, e)         { return (timeToMinutes(e) - timeToMinutes(s)) * (HOUR_H / 60); }
 function dateToHm(iso)      { const d = new Date(iso); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
 function getDayDate()       { if (!_dayDate) _dayDate = new Date().toISOString().slice(0, 10); return _dayDate; }
 
@@ -134,10 +156,24 @@ function _renderWeekView(container) {
    DAY VIEW
 ══════════════════════════════════════════════════════════ */
 function _renderDayView(container) {
-  const dateObj = new Date(getDayDate() + 'T12:00:00');
-  const isToday = isSameDay(dateObj, new Date());
+  const dateObj  = new Date(getDayDate() + 'T12:00:00');
+  const dateStr  = isoDate(dateObj);
+  const isToday  = isSameDay(dateObj, new Date());
   const subjects = State.getSubjects();
   const dayLabel = dateObj.toLocaleDateString('de-DE', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+  // Compute compact time range from today's events
+  const dayKey    = jsDateToDayKey(dateObj);
+  const dayBlocks = State.getBlocks().filter(b => b.date ? b.date.split('T')[0] === dateStr : b.day === dayKey);
+  const prefs0    = State.get().schedulePrefs || {};
+  const cache0    = scheduleSync.loadCache();
+  const useIcs0   = (prefs0.source === 'ics-url' || prefs0.source === 'ics-file')
+    && Array.isArray(cache0.events) && cache0.events.length > 0;
+  const dayIcsEvs = useIcs0 ? (cache0.events || []).filter(ev => ev.startsAt.slice(0, 10) === dateStr) : [];
+  const range = getDayTimeRange(dayIcsEvs, dayBlocks);
+  _dayStartH = range.start;
+  _dayEndH   = range.end;
+  const dayTotalH = _dayEndH - _dayStartH;
 
   container.innerHTML = `
     <div class="schedule-view">
@@ -165,9 +201,9 @@ function _renderDayView(container) {
 
       <div class="schedule-grid-wrap" id="schedule-wrap">
         <div class="schedule-grid schedule-grid-day" id="schedule-grid">
-          <div class="schedule-time-col">${_buildTimeAxis()}</div>
+          <div class="schedule-time-col">${_buildTimeAxis(_dayStartH, _dayEndH)}</div>
           <div class="schedule-day-col day-view-col${isToday ? ' today' : ''}"
-            data-day-date="${getDayDate()}">${_buildHourLines()}</div>
+            data-day-date="${getDayDate()}">${_buildHourLines(dayTotalH)}</div>
         </div>
       </div>
     </div>`;
@@ -175,9 +211,12 @@ function _renderDayView(container) {
   renderIcons(container);
   _placeBlocksDay(container, dateObj);
   _placeIcsEventsDay(container, dateObj);
+  _placeDaySeparators(container.querySelector('.schedule-day-col'));
   _updateScheduleSyncBar(container);
-  if (isToday) _updateTimeIndicator(container, 0);
-  _scheduleMinuteTimer = setInterval(() => { if (isToday) _updateTimeIndicator(container, 0); }, 60000);
+  if (isToday) _updateTimeIndicator(container, 0, _dayStartH, _dayEndH);
+  _scheduleMinuteTimer = setInterval(() => {
+    if (isToday) _updateTimeIndicator(container, 0, _dayStartH, _dayEndH);
+  }, 60000);
   _bindDayEvents(container, dateObj, subjects);
 }
 
@@ -188,16 +227,16 @@ function _weekLabel(days) {
   return `${fStr} – ${lStr}`;
 }
 
-function _buildTimeAxis() {
+function _buildTimeAxis(startH = START_H, endH = END_H) {
   let html = '';
-  for (let h = START_H; h < END_H; h++)
+  for (let h = startH; h < endH; h++)
     html += `<div class="schedule-time-slot" style="height:${HOUR_H}px"><span>${String(h).padStart(2,'0')}:00</span></div>`;
   return html;
 }
 
-function _buildHourLines() {
+function _buildHourLines(totalH = TOTAL_H) {
   let html = '';
-  for (let h = 0; h < TOTAL_H; h++) {
+  for (let h = 0; h < totalH; h++) {
     html += `<div class="schedule-hour-line" style="top:${h*HOUR_H}px"></div>`;
     html += `<div class="schedule-hour-line half" style="top:${h*HOUR_H+HOUR_H/2}px"></div>`;
   }
@@ -307,7 +346,7 @@ function _placeBlocksDay(container, dateObj) {
       : block.day === dayKey;
     if (!isForDate) return;
 
-    const top    = timeToTop(block.startTime);
+    const top    = timeToTopDay(block.startTime);
     const height = blockHeight(block.startTime, block.endTime);
     const color  = getColor(block.subjectId);
 
@@ -340,7 +379,7 @@ function _placeIcsEventsDay(container, dateObj) {
   events.forEach(ev => {
     const st = dateToHm(ev.startsAt);
     const en = dateToHm(ev.endsAt);
-    const top    = timeToTop(st);
+    const top    = timeToTopDay(st);
     const height = Math.max(48, blockHeight(st, en));
     const color  = getColor(ev.subjectId);
 
@@ -354,6 +393,27 @@ function _placeIcsEventsDay(container, dateObj) {
       ${ev.location ? `<div style="font-size:11px;opacity:.8;margin-top:2px">${ev.location}</div>` : ''}`;
     col.appendChild(el);
   });
+}
+
+/* ── Day gap separators ────────────────────────────────── */
+function _placeDaySeparators(col) {
+  if (!col) return;
+  col.querySelectorAll('.day-gap-line').forEach(el => el.remove());
+  const gapPx = 30 * (HOUR_H / 60); // 30 min threshold
+  const items = [...col.querySelectorAll('.schedule-block')]
+    .map(el => ({ top: parseFloat(el.style.top) || 0, height: parseFloat(el.style.height) || 0 }))
+    .sort((a, b) => a.top - b.top);
+  for (let i = 0; i < items.length - 1; i++) {
+    const endOfCurrent  = items[i].top + items[i].height;
+    const startOfNext   = items[i + 1].top;
+    const gap = startOfNext - endOfCurrent;
+    if (gap >= 0 && gap < gapPx) {
+      const line = document.createElement('div');
+      line.className = 'day-gap-line';
+      line.style.top = `${endOfCurrent}px`;
+      col.appendChild(line);
+    }
+  }
 }
 
 /* ── Sync bar ──────────────────────────────────────────── */
@@ -407,13 +467,13 @@ function _updateScheduleSyncBar(container) {
 }
 
 /* ── Time indicator ────────────────────────────────────── */
-function _updateTimeIndicator(container, todayIdx) {
+function _updateTimeIndicator(container, todayIdx, startH = START_H, endH = END_H) {
   container.querySelector('.time-indicator')?.remove();
   if (todayIdx < 0) return;
   const now  = new Date();
   const mins = now.getHours() * 60 + now.getMinutes();
-  if (mins < START_H*60 || mins > END_H*60) return;
-  const top = (mins - START_H*60) * (HOUR_H/60);
+  if (mins < startH*60 || mins > endH*60) return;
+  const top = (mins - startH*60) * (HOUR_H/60);
   const col = container.querySelectorAll('.schedule-day-col')[todayIdx];
   if (!col) return;
   const ind = document.createElement('div');
@@ -581,11 +641,11 @@ function _bindDayEvents(container, dateObj, subjects) {
     if (e.target.closest('.schedule-block')) return;
     const rect = col.getBoundingClientRect();
     const relY = e.clientY - rect.top + col.closest('.schedule-grid-wrap').scrollTop;
-    const startMins = snapMinutes(relY / (HOUR_H/60) + START_H*60);
+    const startMins = snapMinutes(relY / (HOUR_H/60) + _dayStartH*60);
     const endMins   = startMins + 90;
     const prefill = {
-      startTime: minutesToTime(Math.max(START_H*60, Math.min(startMins, END_H*60-90))),
-      endTime:   minutesToTime(Math.min(END_H*60, endMins)),
+      startTime: minutesToTime(Math.max(_dayStartH*60, Math.min(startMins, _dayEndH*60-90))),
+      endTime:   minutesToTime(Math.min(_dayEndH*60, endMins)),
       date: getDayDate()
     };
     openBlockModal(prefill, subjects, [dateObj], container, true);

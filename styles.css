@@ -2136,3 +2136,14 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
   width: auto !important;
 }
 
+.day-gap-line {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 1px;
+  background: var(--border-subtle);
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 1;
+}
+
