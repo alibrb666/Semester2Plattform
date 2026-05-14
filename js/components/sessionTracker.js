@@ -11,11 +11,11 @@ let _notifTimer = null;
 
 /* ── Persistence ──────────────────────────────────────────────── */
 function loadActive() {
-  try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY)); } catch { return null; }
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; }
 }
 function saveActive(s) {
-  if (s) sessionStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-  else   sessionStorage.removeItem(STORAGE_KEY);
+  if (s) localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+  else   localStorage.removeItem(STORAGE_KEY);
 }
 
 /* ── Time helpers ─────────────────────────────────────────────── */

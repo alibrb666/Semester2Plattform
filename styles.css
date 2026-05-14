@@ -8,6 +8,7 @@
   --bg-elevated:       #16181B;
   --bg-overlay:        #1C1F23;
   --border-subtle:     rgba(255,255,255,0.06);
+  --border-muted:      rgba(255,255,255,0.06);
   --border-default:    rgba(255,255,255,0.10);
   --border-strong:     rgba(255,255,255,0.18);
   --text-primary:      #F4F4F5;
@@ -60,6 +61,7 @@
   --bg-elevated:       #FFFFFF;
   --bg-overlay:        #F4F4F5;
   --border-subtle:     rgba(0,0,0,0.06);
+  --border-muted:      rgba(0,0,0,0.06);
   --border-default:    rgba(0,0,0,0.10);
   --border-strong:     rgba(0,0,0,0.18);
   --text-primary:      #0A0A0B;
@@ -1384,7 +1386,7 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
 
 .session-row {
   display: grid;
-  grid-template-columns: 3px 36px 1fr auto auto auto;
+  grid-template-columns: 3px 36px 1fr auto auto auto auto auto;
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
@@ -1405,6 +1407,13 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
 .session-row-rating { font-size: 12px; }
 .session-row-dur { font-family: var(--font-mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .session-row-date { font-size: 11px; color: var(--text-tertiary); white-space: nowrap; text-align: right; }
+.session-row-tasks {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
 /* ============================================================
    STATISTICS VIEW
@@ -1784,3 +1793,121 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
 .review-fach-bar { flex: 1; height: 6px; background: var(--bg-base); border-radius: var(--r-pill); overflow: hidden; }
 .review-fach-fill { height: 100%; border-radius: var(--r-pill); transition: width 600ms var(--ease); }
 .review-fach-pct { font-size: 11px; color: var(--text-tertiary); width: 40px; text-align: right; }
+
+/* ── Stop Modal ─────────────────────────────────────── */
+.stop-header {
+  text-align: center;
+  padding: var(--sp-4) 0 var(--sp-2);
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-2);
+}
+.stop-subject {
+  font-size: 12px; font-weight: 500; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.stop-time {
+  font-family: var(--font-mono); font-size: 40px; font-weight: 600;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
+  color: var(--text-primary);
+}
+.stop-time-label {
+  font-size: 12px; color: var(--text-tertiary);
+}
+.stop-task-list {
+  display: flex; flex-direction: column; gap: var(--sp-2);
+}
+.stop-task-row {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  font-size: 13px;
+}
+.stop-task-row.done { opacity: 0.55; }
+.stop-task-row.done .stop-task-icon { color: var(--success); }
+.stop-task-icon { font-size: 14px; flex-shrink: 0; }
+.stop-task-title { flex: 1; color: var(--text-primary); }
+.stop-task-dur {
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-tertiary); font-variant-numeric: tabular-nums;
+}
+
+/* ── Session Detail Tasks ────────────────────────────── */
+.detail-task-list { display: flex; flex-direction: column; gap: var(--sp-2); }
+.detail-task-wrap { display: flex; flex-direction: column; gap: 2px; }
+.detail-task-row {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  font-size: 13px;
+}
+.detail-task-row.done { opacity: 0.6; }
+.detail-task-row.edit-task-row { flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.detail-task-status { flex-shrink: 0; color: var(--text-tertiary); font-size: 14px; }
+.detail-task-row.done .detail-task-status { color: var(--success); }
+.detail-task-title { flex: 1; }
+.detail-task-dur {
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-secondary); font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.task-time-edit {
+  display: flex; align-items: center; gap: var(--sp-2);
+  flex-wrap: wrap; font-size: 12px; color: var(--text-tertiary);
+}
+
+/* ── Subject Picker (New Session / Edit) ─────────────── */
+.subject-picker {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp-2);
+}
+.subject-pick-btn {
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  border: 2px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 13px; font-weight: 500;
+  cursor: pointer;
+  transition: border-color 150ms var(--ease), background 150ms var(--ease),
+              color 150ms var(--ease);
+  text-align: left;
+}
+.subject-pick-btn:hover {
+  border-color: var(--clr, var(--accent));
+  background: color-mix(in srgb, var(--clr, var(--accent)) 10%, transparent);
+  color: var(--clr, var(--accent));
+}
+.subject-pick-btn.selected {
+  border-color: var(--clr, var(--accent));
+  background: color-mix(in srgb, var(--clr, var(--accent)) 12%, transparent);
+  color: var(--clr, var(--accent));
+}
+
+/* ── Settings Schedule Section ───────────────────────── */
+.schedule-source-row {
+  display: flex; flex-direction: column; gap: var(--sp-3);
+}
+.radio-line {
+  display: flex; align-items: center; gap: var(--sp-3);
+  font-size: 13px; color: var(--text-secondary); cursor: pointer;
+}
+.radio-line input[type="radio"] { accent-color: var(--accent); }
+.sched-help-acc {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  padding: var(--sp-3) var(--sp-4);
+}
+.sched-status-line {
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-elevated);
+  border-radius: var(--r-md);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.label-hint {
+  font-size: 11px; color: var(--text-tertiary); font-weight: 400;
+}
