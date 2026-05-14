@@ -21,6 +21,8 @@ import { renderSettings }  from './views/settings.js';
 import { renderTodos }     from './views/todos.js';
 import { generateDemoData } from './demo.js';
 import { renderIcons, setPhases, applySubjectColors } from './util.js';
+import { Auth } from './auth.js';
+import * as Sync from './sync.js';
 
 let _launchAppStarted = false;
 let _routerVisualListener = false;
@@ -97,47 +99,131 @@ const DEFAULT_STATE = {
   }
 };
 
+function showAccountModal() {
+  const user = State.getUserId();
+  const modal = Modal.open({
+    title: 'Account',
+    body: `
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="settings-row" style="border:none;padding:0">
+          <div>
+            <div class="settings-row-label">Eingeloggt als</div>
+            <div class="settings-row-sub" id="account-email" style="font-family:var(--font-mono);font-size:12px">…</div>
+          </div>
+        </div>
+      </div>`,
+    footer: `<button class="btn btn-danger btn-sm" id="btn-signout">Abmelden</button>
+             <button class="btn btn-ghost btn-sm" id="btn-account-close">Schließen</button>`
+  });
+  Auth.getUser().then(u => {
+    const el = document.getElementById('account-email');
+    if (el && u) el.textContent = u.email;
+  });
+  modal.el.querySelector('#btn-account-close')?.addEventListener('click', () => modal.close());
+  modal.el.querySelector('#btn-signout')?.addEventListener('click', async () => {
+    modal.close();
+    try {
+      await Auth.signOut();
+    } catch (err) {
+      Toast.error('Abmeldung fehlgeschlagen', err.message);
+    }
+  });
+}
+
 /* ── Boot ───────────────────────────────────────────────────── */
 async function boot() {
-  console.log('[DEBUG] Boot function started');
   try {
-    const stored = Storage.load();
-    console.log('[DEBUG] Loaded state:', stored);
-    if (!stored) {
-      State.init(JSON.parse(JSON.stringify(DEFAULT_STATE)));
-      launchApp();
-      showWelcome();
+    // Supabase Auth check
+    const session = await Auth.getSession();
+    if (session?.user) {
+      await bootWithUser(session.user);
     } else {
-      State.init(stored);
-      launchApp();
+      showAuthScreen();
     }
+
+    // Listen for auth state changes (login / logout)
+    Auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        hideAuthScreen();
+        if (!_launchAppStarted) {
+          await bootWithUser(session.user);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        _launchAppStarted = false;
+        showAuthScreen();
+        State.setUserId(null);
+        State.init(JSON.parse(JSON.stringify(DEFAULT_STATE)));
+      }
+    });
+  } catch (e) {
+    console.error('[boot]', e);
+    // Fallback: show auth screen on error
+    showAuthScreen();
+  }
+}
+
+async function bootWithUser(user) {
+  try {
+    State.setUserId(user.id);
+    updateUserAvatar(user);
+
+    // Load from Supabase, fallback to localStorage cache
+    let stateData;
+    try {
+      const cached = Storage.load();
+      const defaultBase = JSON.parse(JSON.stringify(DEFAULT_STATE));
+      // Start with cache for instant render, then hydrate from Supabase
+      if (cached) {
+        State.init(cached);
+        launchApp();
+      }
+      stateData = await Sync.loadAllData(user.id, cached || defaultBase);
+      State.init(stateData);
+      Storage.saveNow(stateData);
+      if (!_launchAppStarted) launchApp();
+      else refreshCurrentView();
+    } catch (syncErr) {
+      console.warn('[boot] Supabase load failed, using local cache:', syncErr.message);
+      const cached = Storage.load();
+      if (cached) {
+        State.init(cached);
+      } else {
+        State.init(JSON.parse(JSON.stringify(DEFAULT_STATE)));
+      }
+      if (!_launchAppStarted) launchApp();
+      Toast.error('Sync-Fehler', 'Lokale Daten werden genutzt.');
+    }
+
     setPhases(State.getSettings().phases || null);
     applySubjectColors(State.getSubjects());
+    Sync.initOfflineHandling(user.id);
+    Sync.flushQueue(user.id);
+
+    // Migration banner
+    const localRaw = localStorage.getItem('learn.v1');
+    if (localRaw) {
+      try {
+        const localData = JSON.parse(localRaw);
+        const hasSessions = (localData.sessions || []).filter(s => !s.isDemo).length > 0;
+        if (hasSessions) showMigrationBanner(localData, user.id);
+      } catch {}
+    }
 
     void waitForLucide(15000).then(() => {
-      console.log('[DEBUG] Lucide icons loaded');
       const vr = document.getElementById('view-root');
       if (vr) renderIcons(vr);
       renderIcons(document.getElementById('sidebar-nav'));
       renderIcons(document.getElementById('mobile-tabs'));
       renderIcons(document.getElementById('session-widget'));
-      const w = document.getElementById('welcome');
-      if (w && !w.hidden) renderIcons(w);
     });
   } catch (e) {
-    console.error('[boot]', e);
+    console.error('[bootWithUser]', e);
     document.getElementById('app')?.removeAttribute('aria-busy');
     const root = document.getElementById('view-root');
-    if (root) {
-      root.innerHTML = `<div class="view" style="padding:24px;max-width:560px">
-        <div class="view-title" style="color:var(--danger)">Start fehlgeschlagen</div>
-        <p style="color:var(--text-secondary);font-size:14px;margin-top:12px;line-height:1.5">${String(e?.message || e)}</p>
-        <p style="color:var(--text-tertiary);font-size:13px;margin-top:16px">
-          Safari: <strong>Entwickler → JavaScript-Konsole anzeigen</strong>, dann <strong>⌘R</strong>.
-          Live Server muss den Ordner mit <code>index.html</code> als Root öffnen.
-        </p>
-      </div>`;
-    }
+    if (root) root.innerHTML = `<div class="view" style="padding:24px;max-width:560px">
+      <div class="view-title" style="color:var(--danger)">Start fehlgeschlagen</div>
+      <p style="color:var(--text-secondary);font-size:14px;margin-top:12px">${String(e?.message || e)}</p>
+    </div>`;
   }
 }
 
@@ -279,6 +365,7 @@ function initActionDelegation() {
       case 'open-palette':   document.dispatchEvent(new CustomEvent('app:palette')); break;
       case 'open-shortcuts': showShortcuts(); break;
       case 'quick-capture':  document.dispatchEvent(new CustomEvent('app:quick-capture')); break;
+      case 'open-account':   showAccountModal(); break;
       default: break;
     }
   });
@@ -317,6 +404,115 @@ function showShortcuts() {
       </div>`
   });
   renderIcons(document.querySelector('.modal'));
+}
+
+/* ── Auth Screen ────────────────────────────────────────────── */
+function showAuthScreen() {
+  document.getElementById('app')?.removeAttribute('aria-busy');
+  const overlay = document.getElementById('auth-overlay');
+  if (!overlay) return;
+  overlay.removeAttribute('hidden');
+
+  // Tab switching
+  overlay.querySelectorAll('[data-auth-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.authTab;
+      overlay.querySelectorAll('[data-auth-tab]').forEach(b => b.classList.toggle('active', b.dataset.authTab === tab));
+      overlay.querySelector('#auth-form-login').hidden  = tab !== 'login';
+      overlay.querySelector('#auth-form-register').hidden = tab !== 'register';
+      clearAuthError();
+    });
+  });
+
+  // Login
+  overlay.querySelector('#auth-form-login')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const email    = overlay.querySelector('#login-email').value.trim();
+    const password = overlay.querySelector('#login-password').value;
+    setAuthLoading(true);
+    try {
+      await Auth.signIn(email, password);
+      // onAuthStateChange fires → hideAuthScreen + bootWithUser
+    } catch (err) {
+      showAuthError(err.message || 'Anmeldung fehlgeschlagen.');
+    } finally {
+      setAuthLoading(false);
+    }
+  });
+
+  // Register
+  overlay.querySelector('#auth-form-register')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const name     = overlay.querySelector('#reg-name').value.trim();
+    const email    = overlay.querySelector('#reg-email').value.trim();
+    const password = overlay.querySelector('#reg-password').value;
+    setAuthLoading(true);
+    try {
+      await Auth.signUp(email, password, name);
+      showAuthHint('Bestätigungs-E-Mail gesendet! Bitte prüfe dein Postfach.');
+    } catch (err) {
+      showAuthError(err.message || 'Registrierung fehlgeschlagen.');
+    } finally {
+      setAuthLoading(false);
+    }
+  });
+
+  void waitForLucide(10000).then(() => renderIcons(overlay));
+}
+
+function hideAuthScreen() {
+  document.getElementById('auth-overlay')?.setAttribute('hidden', '');
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.removeAttribute('hidden');
+}
+function clearAuthError() {
+  const el = document.getElementById('auth-error');
+  if (el) { el.textContent = ''; el.setAttribute('hidden', ''); }
+}
+function showAuthHint(msg) {
+  const el = document.getElementById('auth-hint');
+  if (el) el.textContent = msg;
+}
+function setAuthLoading(on) {
+  ['btn-login','btn-register'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = on;
+  });
+}
+
+function updateUserAvatar(user) {
+  const avatar  = document.getElementById('user-avatar');
+  const initial = document.getElementById('user-initial');
+  if (!avatar || !initial) return;
+  const name = user.user_metadata?.name || user.email || '?';
+  initial.textContent = name.charAt(0).toUpperCase();
+  avatar.dataset.tooltip = name;
+}
+
+/* ── Migration banner ───────────────────────────────────────── */
+function showMigrationBanner(localData, userId) {
+  const banner = document.getElementById('migration-banner');
+  if (!banner) return;
+  banner.removeAttribute('hidden');
+  void waitForLucide(10000).then(() => renderIcons(banner));
+
+  banner.querySelector('#btn-migrate')?.addEventListener('click', async () => {
+    banner.setAttribute('hidden', '');
+    try {
+      await Sync.migrateLocalData(localData, userId);
+      Toast.success('Migration abgeschlossen', 'Lokale Daten wurden übertragen.');
+    } catch (err) {
+      Toast.error('Migration fehlgeschlagen', err.message);
+    }
+  });
+  banner.querySelector('#btn-migrate-skip')?.addEventListener('click', () => {
+    banner.setAttribute('hidden', '');
+  });
 }
 
 /* ── Welcome Screen ─────────────────────────────────────────── */

@@ -57,6 +57,7 @@
         <div class="topbar-countdowns" id="topbar-countdowns" aria-label="Klausur-Countdowns"></div>
 
         <div class="topbar-right">
+          <div class="sync-dot" id="sync-dot" data-active="false" aria-hidden="true"></div>
           <button
             class="icon-btn"
             data-action="open-palette"
@@ -81,8 +82,17 @@
           >
             <i data-lucide="keyboard"></i>
           </button>
+          <button class="user-avatar" id="user-avatar" data-action="open-account" aria-label="Account" data-tooltip="Account">
+            <span id="user-initial">?</span>
+          </button>
         </div>
       </header>
+
+      <!-- Offline banner -->
+      <div class="offline-banner" id="offline-banner" hidden role="status">
+        <i data-lucide="wifi-off" style="width:14px;height:14px"></i>
+        Offline — Änderungen werden synchronisiert sobald du wieder online bist
+      </div>
 
       <aside class="sidebar" role="navigation" aria-label="Hauptnavigation">
         <a class="sidebar-brand" href="#dashboard" data-route="dashboard">
@@ -210,6 +220,66 @@
           „Direkt loslegen“ startet leer für produktives Arbeiten.
         </div>
         <div class="welcome-foot">Du kannst Demo-Daten jederzeit in den Einstellungen löschen und neu starten. Daten bleiben lokal in deinem Browser.</div>
+      </div>
+    </div>
+
+    <!-- Auth overlay (shown when not logged in) -->
+    <div class="auth-overlay" id="auth-overlay" hidden>
+      <div class="auth-card">
+        <div class="auth-logo">
+          <span class="brand-mark">1.0</span>
+        </div>
+        <h1 class="auth-title">Lernplattform</h1>
+        <p class="auth-sub">Deine persönliche Klausurvorbereitung</p>
+
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-auth-tab="login">Anmelden</button>
+          <button class="auth-tab" data-auth-tab="register">Registrieren</button>
+        </div>
+
+        <div id="auth-error" class="auth-error" hidden></div>
+
+        <!-- Login form -->
+        <form id="auth-form-login" class="auth-form">
+          <div class="field">
+            <label for="login-email">E-Mail</label>
+            <input class="input" id="login-email" type="email" placeholder="name@example.com" autocomplete="email" required />
+          </div>
+          <div class="field">
+            <label for="login-password">Passwort</label>
+            <input class="input" id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" required />
+          </div>
+          <button type="submit" class="btn btn-primary" id="btn-login" style="width:100%;margin-top:8px">Anmelden</button>
+        </form>
+
+        <!-- Register form -->
+        <form id="auth-form-register" class="auth-form" hidden>
+          <div class="field">
+            <label for="reg-name">Name</label>
+            <input class="input" id="reg-name" type="text" placeholder="Dein Name" autocomplete="name" required />
+          </div>
+          <div class="field">
+            <label for="reg-email">E-Mail</label>
+            <input class="input" id="reg-email" type="email" placeholder="name@example.com" autocomplete="email" required />
+          </div>
+          <div class="field">
+            <label for="reg-password">Passwort</label>
+            <input class="input" id="reg-password" type="password" placeholder="mind. 8 Zeichen" autocomplete="new-password" minlength="8" required />
+          </div>
+          <button type="submit" class="btn btn-primary" id="btn-register" style="width:100%;margin-top:8px">Konto erstellen</button>
+        </form>
+
+        <div class="auth-hint" id="auth-hint"></div>
+      </div>
+    </div>
+
+    <!-- Migration banner (shown after login if localStorage data exists) -->
+    <div class="migration-banner" id="migration-banner" hidden>
+      <div class="migration-content">
+        <i data-lucide="database" style="width:16px;height:16px;flex-shrink:0"></i>
+        <span>Lokale Daten gefunden — in die Cloud übertragen?</span>
+        <button class="btn btn-primary btn-sm" id="btn-migrate">Übertragen</button>
+        <button class="btn btn-ghost btn-sm" id="btn-migrate-skip">Überspringen</button>
       </div>
     </div>
 
