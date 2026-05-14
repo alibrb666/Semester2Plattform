@@ -1152,7 +1152,7 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
 .dash-row-4 { grid-template-columns: repeat(4, 1fr); }
 
 /* Goal card */
-.goal-card { display: flex; align-items: center; gap: var(--sp-8); }
+.goal-card { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
 .goal-ring-side {}
 .goal-info { flex: 1; }
 .goal-fach-pills { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-4); }
@@ -1713,35 +1713,70 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
    RESPONSIVE / MOBILE
    ============================================================ */
 @media (max-width: 768px) {
-  :root { --sidebar-w: 0px; }
+  :root { --topbar-h: 48px; --sidebar-w: 0px; }
 
   .app-shell {
-    grid-template-rows: var(--topbar-h) 1fr 60px;
+    grid-template-rows: var(--topbar-h) 1fr calc(60px + max(env(safe-area-inset-bottom), 8px));
     grid-template-columns: 1fr;
     grid-template-areas: "topbar" "main" "mobile-tabs";
   }
   .sidebar { display: none; }
-  .mobile-tabs { display: flex; }
+  .mobile-tabs {
+    display: flex;
+    padding-bottom: max(env(safe-area-inset-bottom), 8px);
+    height: calc(60px + max(env(safe-area-inset-bottom), 8px));
+  }
   .topbar-left .topbar-menu { display: none; }
   .topbar-left { width: auto; }
 
-  .view { padding: var(--sp-5); }
+  .view {
+    padding: var(--sp-4);
+    padding-bottom: calc(60px + max(env(safe-area-inset-bottom), 8px) + var(--sp-8));
+  }
+
+  .dash-row[style*="grid-template-columns:1fr 2fr"] { grid-template-columns: 1fr !important; }
+  .dash-row-2 { grid-template-columns: 1fr 1fr; }
   .dash-row-4 { grid-template-columns: 1fr 1fr; }
-  .exam-cards { grid-template-columns: 1fr 1fr; }
+
+  .goal-card { flex-direction: row; align-items: center; gap: var(--sp-4); }
+  .progress-ring-wrap { width: 100px; height: 100px; }
+  .progress-ring { width: 100px; height: 100px; }
+  .ring-value { font-size: 14px; }
+  .ring-label { font-size: 10px; }
+
+  .hero { padding: var(--sp-5) 0 var(--sp-4); }
+  .hero-greeting { font-size: 24px; }
+  .hero-meta { gap: var(--sp-2); flex-wrap: wrap; }
+  .hero-phase { font-size: 11px; padding: 2px 8px; }
+
+  .exam-cards { grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+  .exam-days { font-size: 22px; }
+  .exam-name { font-size: 10px; }
+
+  .session-item { padding: var(--sp-3); }
+  .session-note { font-size: 12px; }
+
+  .session-widget {
+    bottom: calc(60px + max(env(safe-area-inset-bottom), 8px) + var(--sp-3));
+    right: var(--sp-3); left: var(--sp-3); width: auto; border-radius: var(--r-lg);
+  }
+  .fab {
+    bottom: calc(60px + max(env(safe-area-inset-bottom), 8px) + 80px + var(--sp-3));
+    right: var(--sp-4);
+  }
+  .session-widget[data-state="running"] ~ .fab,
+  .session-widget[data-state="paused"]  ~ .fab { display: none; }
+
+  .topbar-countdowns { display: none; }
+  .schedule-grid-wrap { height: calc(100dvh - var(--topbar-h) - 130px); }
   .stats-overview { grid-template-columns: 1fr 1fr; }
   .stats-charts { grid-template-columns: 1fr; }
   .errors-layout { grid-template-columns: 1fr; height: auto; }
   .errors-detail-pane { min-height: 400px; }
   .mocks-content { grid-template-columns: 1fr; }
   .subject-goals-grid { grid-template-columns: 1fr 1fr; }
-  .goal-card { flex-direction: column; align-items: flex-start; }
-  .dash-row-2 { grid-template-columns: 1fr; }
-
-  .session-widget { bottom: 80px; right: 12px; left: 12px; width: auto; }
-  .fab { bottom: 76px; right: 12px; }
-
-  .topbar-countdowns { display: none; }
-  .schedule-grid-wrap { height: calc(100dvh - var(--topbar-h) - 130px); }
+  .todos-layout { grid-template-columns: 1fr; height: auto; }
+  .todos-filter-pane { max-height: 180px; }
 }
 
 @media (max-width: 480px) {

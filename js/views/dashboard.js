@@ -72,7 +72,7 @@ export function renderDashboard(container) {
       <!-- Row: Goal + Subject cards -->
       <div class="dash-row dash-row-2" style="grid-template-columns:1fr 2fr;align-items:start">
         <!-- Tagesziel -->
-        <div class="card goal-card" style="flex-direction:column;gap:16px">
+        <div class="card goal-card">
           <div class="section-title">Tagesziel</div>
           <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
             <div class="progress-ring-wrap" aria-label="Tagesziel: ${formatDuration(todaySec)} von ${formatDuration(goal)} gelernt">
