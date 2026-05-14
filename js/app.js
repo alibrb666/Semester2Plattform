@@ -222,22 +222,33 @@ function launchApp() {
 
 async function maybeRefreshIcsSchedule() {
   try {
-    const scheduleSync = await import('./scheduleSync.js');
+    const { fetchIcsText, parseIcsToEvents, saveCache,
+            shouldAutoSync, loadCache } = await import('./scheduleSync.js');
+
     const prefs = State.get().schedulePrefs;
     if (!prefs || prefs.source !== 'ics-url' || !prefs.icsUrl?.trim()) return;
-    const intervalMinutes = prefs.syncIntervalMinutes || 360;
-    if (!scheduleSync.shouldAutoSync(prefs.lastSyncedAt, intervalMinutes)) return;
-    const txt = await scheduleSync.fetchIcsText(prefs.icsUrl.trim());
-    const evs = scheduleSync.parseIcsToEvents(txt, 'ics-url');
-    scheduleSync.saveCache(evs, new Date().toISOString());
+
+    const cache = loadCache();
+    const cacheEmpty = !cache.events || cache.events.length === 0;
+    const intervalMinutes = prefs.syncIntervalMinutes || 60;
+
+    // Sync wenn: Cache leer ODER Intervall abgelaufen
+    if (!cacheEmpty && !shouldAutoSync(prefs.lastSyncedAt, intervalMinutes)) return;
+
+    console.log('[App] Auto-sync Kalender…');
+    const txt = await fetchIcsText(prefs.icsUrl.trim());
+    const evs = parseIcsToEvents(txt, 'ics-url');
+    saveCache(evs, new Date().toISOString());
     State.patchSchedulePrefs({
       lastSyncedAt: new Date().toISOString(),
       lastError: null,
       eventCount: evs.length
     });
     Storage.saveNow(State.get());
-  } catch {
-    State.patchSchedulePrefs({ lastError: 'SYNC' });
+    console.log(`[App] Kalender synct: ${evs.length} Termine`);
+  } catch (err) {
+    console.warn('[App] Auto-sync fehlgeschlagen:', err.message);
+    State.patchSchedulePrefs({ lastError: err.code || 'SYNC' });
     Storage.saveNow(State.get());
   }
 }

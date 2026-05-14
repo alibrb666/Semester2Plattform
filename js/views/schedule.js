@@ -249,8 +249,13 @@ function _updateScheduleSyncBar(container) {
   if (!bar) return;
   const prefs = State.get().schedulePrefs || {};
   const cache = scheduleSync.loadCache();
-  if (prefs.source === 'manual' && !cache.events?.length) {
-    bar.style.display = 'none';
+  if (prefs.source === 'manual') {
+    bar.innerHTML = `
+      <span style="font-size:12px;color:var(--text-tertiary)">
+        Manueller Modus — Vorlesungszeiten aus dem Lernplan vorausgefüllt.
+        <a href="#settings" style="color:var(--accent)">Google Calendar verbinden →</a>
+      </span>`;
+    bar.style.display = 'flex';
     return;
   }
   bar.style.display = 'flex';

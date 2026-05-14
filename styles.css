@@ -1901,6 +1901,13 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
   border-radius: var(--r-md);
   padding: var(--sp-3) var(--sp-4);
 }
+/* ── Settings: Stundenplan-Buttons ─────────────────────── */
+.sched-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
 .sched-status-line {
   padding: var(--sp-2) var(--sp-3);
   background: var(--bg-elevated);

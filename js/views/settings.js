@@ -95,9 +95,13 @@ export function renderSettings(container) {
                   <p style=”margin-top:6px”><strong>CORS-Problem:</strong> Google blockiert direkte Browser-Anfragen. Die App versucht automatisch 3 verschiedene Proxy-Server. Wenn alle scheitern → Datei-Upload nutzen.</p>
                 </div>
               </details>
-              <div style=”display:flex;flex-wrap:wrap;gap:8px;margin-top:12px”>
-                <button type=”button” class=”btn btn-primary btn-sm” id=”sched-btn-sync”>Verbinden &amp; jetzt synchronisieren</button>
-                <button type=”button” class=”btn btn-ghost btn-sm” id=”sched-btn-disconnect”>Verbindung trennen</button>
+              <div class=”sched-btn-row”>
+                <button type=”button” class=”btn btn-primary btn-sm” id=”sched-btn-sync”>
+                  Verbinden &amp; jetzt synchronisieren
+                </button>
+                <button type=”button” class=”btn btn-ghost btn-sm” id=”sched-btn-disconnect”>
+                  Verbindung trennen
+                </button>
               </div>
               <div class=”field” style=”margin-top:12px” id=”sched-interval-wrap”>
                 <label for=”sched-interval”>Automatische Synchronisation alle</label>
@@ -381,27 +385,56 @@ function _bindSettings(container, subjects) {
   });
 
   container.querySelector('#sched-btn-sync')?.addEventListener('click', async () => {
-    const url = container.querySelector('#sched-ics-url')?.value?.trim() || '';
-    if (!url) { Toast.warning('URL fehlt', 'Bitte eine ICS-URL eintragen.'); return; }
+    const urlInput = container.querySelector('#sched-ics-url');
+    const url = urlInput?.value?.trim() || '';
+
+    if (!url) {
+      Toast.warning('URL fehlt', 'Bitte eine ICS-URL eintragen.');
+      urlInput?.focus();
+      return;
+    }
+
+    // URL sofort speichern, noch vor dem Sync-Versuch
+    State.patchSchedulePrefs({ source: 'ics-url', icsUrl: url });
+    Storage.saveNow(State.get());
+
+    const btn = container.querySelector('#sched-btn-sync');
+    const originalText = btn?.textContent || '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Verbinde…'; }
+
     try {
       const txt = await scheduleSync.fetchIcsText(url);
-      const events = scheduleSync.parseIcsToEvents(txt, 'ics-url');
-      scheduleSync.saveCache(events, new Date().toISOString());
+      const evs = scheduleSync.parseIcsToEvents(txt, 'ics-url');
+      scheduleSync.saveCache(evs, new Date().toISOString());
       State.patchSchedulePrefs({
         source: 'ics-url',
         icsUrl: url,
         lastSyncedAt: new Date().toISOString(),
         lastError: null,
-        eventCount: events.length
+        eventCount: evs.length
       });
       Storage.saveNow(State.get());
-      Toast.success('Kalender synchronisiert', `${events.length} Termine`);
+      Toast.success('Kalender verbunden', `${evs.length} Termine geladen`);
+      updateLastSyncLabel();
       updateSchedStatus();
-    } catch {
-      State.patchSchedulePrefs({ lastError: 'SYNC', icsUrl: url });
+      refreshSchedulePanels();
+    } catch (err) {
+      console.error('[Sync]', err);
+      // URL trotzdem behalten, nur Fehler markieren
+      State.patchSchedulePrefs({
+        source: 'ics-url',
+        icsUrl: url,
+        lastError: err.code || 'SYNC'
+      });
       Storage.saveNow(State.get());
-      Toast.error('Sync fehlgeschlagen', 'CORS möglich — nutze ICS-Datei-Upload.');
+      Toast.error(
+        'Sync fehlgeschlagen',
+        'CORS blockiert den Zugriff. Lade die .ics-Datei direkt hoch (Google Calendar → Einstellungen → Exportieren).'
+      );
+      updateLastSyncLabel();
       updateSchedStatus();
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = originalText; }
     }
   });
 
