@@ -109,9 +109,12 @@ function subjectToRow(s, userId) {
   return {
     id: s.id,
     user_id: userId,
+    slug: s.id,
     name: s.name || '',
-    color_hex: s.colorHex || null,
-    exam_date: s.examDate || null
+    color: s.colorHex || s.color || null,
+    color_hex: s.colorHex || s.color || null,
+    exam_date: s.examDate || null,
+    weekly_goal_minutes: s.weeklyGoalMinutes || 360
   };
 }
 
