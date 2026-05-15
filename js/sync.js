@@ -1,5 +1,13 @@
 import { supabase } from './supabase.js';
 
+const COLOR_MAP = {
+  'var(--subject-klr)':  '#10B981',
+  'var(--subject-math)': '#8B5CF6',
+  'var(--subject-prog)': '#06B6D4',
+  'var(--subject-kbs)':  '#F59E0B'
+};
+function resolveColor(c) { return COLOR_MAP[c] || c || '#8B5CF6'; }
+
 const QUEUE_KEY = 'learn.sync_queue';
 
 /* ── Offline queue ─────────────────────────────────────────── */
@@ -111,8 +119,8 @@ function subjectToRow(s, userId) {
     user_id: userId,
     slug: s.id,
     name: s.name || '',
-    color: s.colorHex || s.color || null,
-    color_hex: s.colorHex || s.color || null,
+    color: resolveColor(s.colorHex || s.color),
+    color_hex: resolveColor(s.colorHex || s.color),
     exam_date: s.examDate || null,
     weekly_goal_minutes: s.weeklyGoalMinutes || 360
   };
