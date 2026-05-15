@@ -23,6 +23,7 @@ import { renderIcons, setPhases, applySubjectColors } from './util.js';
 import { Auth } from './auth.js';
 import * as Sync from './sync.js';
 import * as ScheduleSync from './scheduleSync.js';
+import { t, setLanguage, setLanguageSilent, getLanguage, initialLanguage, LANGUAGES, translateDom } from './i18n.js';
 
 const USER_KEY = 'learn.user_id';
 const DEFAULT_ICS_URL = 'https://calendar.google.com/calendar/ical/b4a4464084327a2a90ac105b62cd75812d520f372be512c64711d5a3a4848151%40group.calendar.google.com/public/basic.ics';
@@ -57,6 +58,7 @@ function refreshCurrentView() {
   try {
     view.innerHTML = '';
     fn(view);
+    translateDom(view);
     renderIcons(view);
   } catch (e) {
     console.error('[refreshCurrentView]', route, e);
@@ -72,6 +74,35 @@ function refreshCurrentView() {
   renderIcons(document.getElementById('session-widget'));
 }
 
+function applyShellLanguage() {
+  const nav = [
+    ['dashboard', t('dashboard')],
+    ['schedule', t('schedule')],
+    ['sessions', t('sessions')],
+    ['todos', t('todos')],
+    ['statistics', t('statistics')],
+    ['errors', t('errors')],
+    ['mocks', t('mocks')],
+    ['settings', t('settings')]
+  ];
+  document.querySelector('.brand-name') && (document.querySelector('.brand-name').textContent = t('appName'));
+  document.querySelector('.sidebar-quick-capture span') && (document.querySelector('.sidebar-quick-capture span').textContent = t('quickCapture'));
+  // Only target sidebar nav items — not .sidebar-brand which also has data-route="dashboard"
+  nav.forEach(([route, label]) => {
+    document.querySelectorAll(`#sidebar-nav [data-route="${route}"] span`).forEach(el => { el.textContent = label; });
+  });
+  const mobile = { dashboard: t('today'), schedule: t('plan'), statistics: t('stats'), settings: t('more') };
+  Object.entries(mobile).forEach(([route, label]) => {
+    const el = document.querySelector(`.mobile-tabs [data-route="${route}"] span`);
+    if (el) el.textContent = label;
+  });
+  const avatar = document.getElementById('user-avatar');
+  if (avatar) {
+    avatar.setAttribute('aria-label', t('account'));
+    avatar.dataset.tooltip = State.getSettings()?.name || t('account');
+  }
+}
+
 /* ── Default state ─────────────────────────────────────────── */
 const DEFAULT_STATE = {
   version: 2,
@@ -79,7 +110,8 @@ const DEFAULT_STATE = {
     name: 'Nutzer', theme: 'dark', sidebarCollapsed: false,
     dailyGoalMinutes: 240,
     weeklyGoals: { klr:360, math:390, prog:360, kbs:300 },
-    soundEnabled: true, notificationsEnabled: false, streakFreezeUsed: false
+    soundEnabled: true, notificationsEnabled: false, streakFreezeUsed: false,
+    language: 'de'
   },
   subjects: [
     { id:'klr',  name:'KLR / FiBu',       color:'var(--subject-klr)',  examDate:'2026-07-21' },
@@ -109,54 +141,15 @@ const DEFAULT_STATE = {
 async function boot() {
   const savedUserId = localStorage.getItem(USER_KEY);
 
-  if (savedUserId) {
-    // Bekannter User – direkt starten
-    setActiveUser(savedUserId);
-    const cached = Storage.load();
-    const defaultBase = JSON.parse(JSON.stringify(DEFAULT_STATE));
-    State.init(cached || defaultBase);
-    launchApp();
-    // Explizit aktuelle Route rendern, auch wenn der Hash bereits gesetzt ist.
-    const initialRoute = window.location.hash.replace('#', '') || 'dashboard';
-    Router.navigate(initialRoute);
-    // Offline-Banner initial korrekt setzen
-    if (navigator.onLine) document.getElementById('offline-banner')?.setAttribute('hidden', '');
-
-    // Auth + Sync im Hintergrund
-    Auth.getCurrentUser()
-      .then(user => {
-        if (!user) return Auth.getOrCreateUser();
-        return user;
-      })
-      .then(user => {
-        if (!user) return;
-        setActiveUser(user.id);
-        updateUserAvatar(user);
-        // Offline-Handling erst hier, wenn userId bekannt
-        Sync.initOfflineHandling(user.id);
-        Sync.flushQueue(user.id);
-        const base = cached || JSON.parse(JSON.stringify(DEFAULT_STATE));
-        return Sync.loadAllData(user.id, base)
-          .then(stateData => {
-            State.init(stateData);
-            Storage.saveNow(stateData);
-            Sync.pushProfileState(State.get(), user.id);
-            refreshCurrentView();
-          });
-      })
-      .catch(e => console.warn('[Boot] Sync failed:', e));
-  } else {
-    // Neuer User – Name-Screen zeigen
-    document.getElementById('app')?.removeAttribute('aria-busy');
-    showNameScreen();
-  }
+  if (savedUserId) Auth.listProfiles();
+  document.getElementById('app')?.removeAttribute('aria-busy');
+  showNameScreen();
 }
 
 function showNameScreen() {
   const screen = document.getElementById('name-screen');
   if (!screen) return;
   screen.removeAttribute('hidden');
-  setTimeout(() => screen.querySelector('#input-name')?.focus(), 100);
   void waitForLucide(10000).then(() => renderIcons(screen));
 
   const showAuthError = message => {
@@ -170,10 +163,14 @@ function showNameScreen() {
     setActiveUser(user.id);
     const cached = Storage.load({ allowLegacy: false });
     const defaultBase = cached || JSON.parse(JSON.stringify(DEFAULT_STATE));
+    // Always prefer the language the user selected on the profile screen (getLanguage())
+    // over any hard-coded default, so non-German users see the correct language immediately.
     defaultBase.settings = {
       ...defaultBase.settings,
-      name: defaultBase.settings?.name || name || user.user_metadata?.name || 'Nutzer'
+      name: defaultBase.settings?.name || name || user.user_metadata?.name || 'Nutzer',
+      language: getLanguage() || defaultBase.settings?.language || 'de'
     };
+    setLanguage(defaultBase.settings.language);
     State.init(defaultBase);
     Storage.saveNow(defaultBase);
     updateUserAvatar(user);
@@ -183,9 +180,22 @@ function showNameScreen() {
     try {
       if (cached) await Sync.migrateLocalData(defaultBase, user.id);
       const stateData = await Sync.loadAllData(user.id, defaultBase);
+      // If the user changed the language on the profile screen (getLanguage() differs
+      // from the page-load default), their selection wins over the Supabase-stored value.
+      // Otherwise use the Supabase-saved language so returning users on new devices
+      // get their saved preference.
+      const profileScreenChanged = getLanguage() !== initialLanguage;
+      stateData.settings.language = profileScreenChanged
+        ? getLanguage()
+        : (stateData.settings.language || getLanguage());
       State.init(stateData);
+      Auth.updateLocalProfile({ id: user.id, name: stateData.settings.name || name || 'Nutzer', language: stateData.settings.language });
       Storage.saveNow(stateData);
       Sync.pushProfileState(State.get(), user.id);
+      // setLanguageSilent updates _lang without firing i18n:changed,
+      // then applyShellLanguage + refreshCurrentView run exactly once.
+      setLanguageSilent(stateData.settings.language);
+      applyShellLanguage();
       refreshCurrentView();
     } catch (e) {
       console.warn('[Sync]', e);
@@ -200,19 +210,100 @@ function showNameScreen() {
     finally { if (btn) { btn.disabled = false; } }
   };
 
-  screen.querySelector('#btn-start')?.addEventListener('click', async () => {
-    const name = screen.querySelector('#input-name')?.value.trim() || 'Nutzer';
-    const btn = screen.querySelector('#btn-start');
-    await withBusy(btn, 'Öffne…', async () => {
-      const user = await Auth.signInWithUsername(name);
-      await startWithUser(user, name);
+  function renderProfileScreen(mode = 'list', selected = null) {
+    const profiles = Auth.listProfiles();
+    const hasProfiles = profiles.length > 0;
+    const langOptions = LANGUAGES.map(l => `<option value="${l.code}" ${getLanguage() === l.code ? 'selected' : ''}>${t(l.labelKey)}</option>`).join('');
+    screen.innerHTML = `
+      <div class="name-card profile-card">
+        <div class="auth-logo"><span class="brand-mark">1.0</span></div>
+        <h1 class="auth-title">${hasProfiles ? t('selectProfile') : t('welcome')}</h1>
+        <p class="auth-sub">${hasProfiles ? t('selectProfileSub') : t('welcomeSub')}</p>
+        <div class="profile-lang-row">
+          <label for="profile-lang">${t('language')}</label>
+          <select class="select" id="profile-lang">${langOptions}</select>
+        </div>
+        ${mode === 'create' || !hasProfiles ? `
+          <div class="auth-form" id="profile-create-form">
+            <div class="field">
+              <label for="input-name">${t('username')}</label>
+              <input class="input" id="input-name" type="text" placeholder="Ali" maxlength="30" autocomplete="username" />
+            </div>
+            <div class="field">
+              <label for="input-pin">${t('pin')}</label>
+              <input class="input" id="input-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" placeholder="1234" />
+            </div>
+            <button class="btn btn-primary" id="btn-start" type="button">${hasProfiles ? t('addProfile') : t('createFirstProfile')}</button>
+            ${hasProfiles ? `<button class="btn btn-ghost" id="btn-cancel-create" type="button">${t('cancel')}</button>` : ''}
+          </div>
+        ` : `
+          <div class="profile-list" aria-label="${t('knownProfiles')}">
+            ${profiles.map(p => `
+              <button class="profile-tile" type="button" data-profile-id="${p.id}">
+                <span class="profile-avatar">${_esc(p.name).charAt(0).toUpperCase()}</span>
+                <span class="profile-name">${_esc(p.name)}</span>
+                <i data-lucide="${p.pinHash ? 'lock' : 'key-round'}"></i>
+              </button>`).join('')}
+          </div>
+          ${selected ? `
+            <div class="auth-form pin-panel">
+              <div class="settings-row-label">${_esc(selected.name)}</div>
+              <div class="field">
+                <label for="input-pin">${selected.pinHash ? t('pin') : t('createPin')}</label>
+                <input class="input" id="input-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="current-password" autofocus />
+              </div>
+              <button class="btn btn-primary" id="btn-unlock" type="button">${selected.pinHash ? t('unlock') : t('createPin')}</button>
+            </div>
+          ` : ''}
+          <button class="btn btn-secondary" id="btn-new-profile" type="button"><i data-lucide="plus"></i>${t('newProfile')}</button>
+        `}
+        <div class="auth-error" id="auth-error" hidden></div>
+        <p class="auth-hint">${t('profileHint')}</p>
+      </div>`;
+    renderIcons(screen);
+    screen.querySelector('#profile-lang')?.addEventListener('change', e => {
+      setLanguage(e.target.value);
+      renderProfileScreen(mode, selected);
     });
-    if (btn) btn.textContent = 'Öffnen';
-  });
+    screen.querySelector('#btn-new-profile')?.addEventListener('click', () => renderProfileScreen('create'));
+    screen.querySelector('#btn-cancel-create')?.addEventListener('click', () => renderProfileScreen('list'));
+    screen.querySelectorAll('[data-profile-id]').forEach(btn => {
+      btn.addEventListener('click', () => renderProfileScreen('list', profiles.find(p => p.id === btn.dataset.profileId)));
+    });
+    screen.querySelector('#btn-start')?.addEventListener('click', async () => {
+      const btn = screen.querySelector('#btn-start');
+      await withBusy(btn, t('opening'), async () => {
+        const name = screen.querySelector('#input-name')?.value.trim();
+        const pin = screen.querySelector('#input-pin')?.value.trim();
+        if (!name) throw new Error(t('nameRequired'));
+        if (!/^\d{4}$/.test(pin || '')) throw new Error(t('pinRequired'));
+        const user = await Auth.signInWithUsername(name, { pin, language: getLanguage() });
+        await startWithUser(user, name);
+      });
+      if (btn) btn.textContent = hasProfiles ? t('addProfile') : t('createFirstProfile');
+    });
+    screen.querySelector('#btn-unlock')?.addEventListener('click', async () => {
+      const btn = screen.querySelector('#btn-unlock');
+      await withBusy(btn, selected?.pinHash ? t('unlock') : t('createPin'), async () => {
+        const pin = screen.querySelector('#input-pin')?.value.trim();
+        if (!/^\d{4}$/.test(pin || '')) throw new Error(t('pinRequired'));
+        let profile = selected;
+        if (!profile.pinHash) profile = await Auth.setProfilePin(profile, pin);
+        // Prefer the profile screen selection if user changed it; otherwise use saved profile language.
+        setLanguage(getLanguage() !== initialLanguage ? getLanguage() : (profile.language || getLanguage()));
+        const user = await Auth.unlockProfile(profile, pin);
+        await startWithUser(user, profile.name);
+      });
+    });
+    screen.querySelectorAll('#input-name,#input-pin').forEach(input => {
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') screen.querySelector('#btn-start,#btn-unlock')?.click();
+      });
+    });
+    setTimeout(() => screen.querySelector('input,button.profile-tile')?.focus(), 50);
+  }
 
-  screen.querySelector('#input-name')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') screen.querySelector('#btn-start')?.click();
-  });
+  renderProfileScreen();
 }
 
 function launchApp() {
@@ -221,6 +312,7 @@ function launchApp() {
 
   const app = document.getElementById('app');
   app?.removeAttribute('aria-busy');
+  applyShellLanguage();
 
   const settings = State.getSettings();
   if (settings.sidebarCollapsed) document.documentElement.dataset.sidebar = 'collapsed';
@@ -362,27 +454,33 @@ function initActionDelegation() {
   });
 }
 
+document.addEventListener('i18n:changed', () => {
+  applyShellLanguage();
+  if (_launchAppStarted) refreshCurrentView();
+});
+
 function showAccountModal() {
   const modal = Modal.open({
-    title: 'Account',
+    title: t('account'),
     body: `
       <div style="display:flex;flex-direction:column;gap:12px">
         <div class="settings-row" style="border:none;padding:0">
           <div>
-            <div class="settings-row-label">Username</div>
+            <div class="settings-row-label">${t('username')}</div>
             <div class="settings-row-sub" id="account-name">…</div>
           </div>
         </div>
         <div class="settings-row" style="border:none;padding:0">
           <div>
-            <div class="settings-row-label">Nutzer-ID</div>
+            <div class="settings-row-label">User-ID</div>
             <div class="settings-row-sub" id="account-uid" style="font-family:var(--font-mono);font-size:11px;word-break:break-all">…</div>
           </div>
         </div>
       </div>`,
-    footer: `<button class="btn btn-danger btn-sm" id="btn-logout">Logout</button>
-             <button class="btn btn-secondary btn-sm" id="btn-device-reset">Gerät zurücksetzen</button>
-             <button class="btn btn-ghost btn-sm" id="btn-account-close">Schließen</button>`
+    footer: `<button class="btn btn-secondary btn-sm" id="btn-switch-profile">${t('switchProfile')}</button>
+             <button class="btn btn-danger btn-sm" id="btn-logout">${t('logout')}</button>
+             <button class="btn btn-secondary btn-sm" id="btn-device-reset">${t('deviceReset')}</button>
+             <button class="btn btn-ghost btn-sm" id="btn-account-close">${t('close')}</button>`
   });
   Auth.getCurrentUser().then(u => {
     const uid = document.getElementById('account-uid');
@@ -391,6 +489,13 @@ function showAccountModal() {
     if (name && u) name.textContent = u.user_metadata?.name || 'Nutzer';
   });
   modal.el.querySelector('#btn-account-close')?.addEventListener('click', () => modal.close());
+  modal.el.querySelector('#btn-switch-profile')?.addEventListener('click', async () => {
+    modal.close();
+    Storage.saveNow(State.get());
+    try { await Sync.pushProfileState(State.get(), State.getUserId()); } catch {}
+    await Auth.signOut();
+    location.reload();
+  });
   modal.el.querySelector('#btn-logout')?.addEventListener('click', async () => {
     modal.close();
     try {
@@ -463,6 +568,10 @@ function updateUserAvatar(user) {
   const name = State.getSettings()?.name || user.user_metadata?.name || '?';
   initial.textContent = name.charAt(0).toUpperCase();
   avatar.dataset.tooltip = name;
+}
+
+function _esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 boot();

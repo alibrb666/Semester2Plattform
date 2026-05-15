@@ -301,8 +301,6 @@ export function renderDashboard(container) {
     });
   });
 
-  /* Refresh on session saved */
-  document.addEventListener('session:saved', () => renderDashboard(container), { once: true });
 }
 
 function _buildDashTodos(todos, subjects) {
