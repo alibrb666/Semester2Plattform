@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js';
+import * as scheduleSync from './scheduleSync.js';
 
 const COLOR_MAP = {
   'var(--subject-klr)':  '#10B981',
@@ -9,6 +10,7 @@ const COLOR_MAP = {
 function resolveColor(c) { return COLOR_MAP[c] || c || '#8B5CF6'; }
 
 const QUEUE_KEY = 'learn.sync_queue';
+const APP_DATA_KEY = '__appData';
 
 /* ── Offline queue ─────────────────────────────────────────── */
 function getQueue() {
@@ -37,7 +39,8 @@ async function processEntry(entry, userId) {
     case 'delete-error':       await supabase.from('error_log').delete().eq('id', data.id).eq('user_id', userId); break;
     case 'delete-mock':        await supabase.from('mocks').delete().eq('id', data.id).eq('user_id', userId); break;
     case 'delete-subject':     await supabase.from('subjects').delete().eq('id', data.id).eq('user_id', userId); break;
-    case 'upsert-settings':    await upsertProfile(userId, data); break;
+    case 'upsert-settings':    await upsertProfileSettings(userId, data); break;
+    case 'upsert-profile-data': await upsertProfileState(userId, data); break;
     default: break;
   }
 }
@@ -64,6 +67,8 @@ function sessionToRow(s, userId) {
     ended_at: s.endedAt || null,
     duration_seconds: s.durationSeconds || 0,
     note: s.note || null,
+    tags: s.tags || [],
+    rating: s.rating || 0,
     tasks: s.tasks || [],
     is_demo: s.isDemo || false
   };
@@ -78,6 +83,7 @@ function todoToRow(t, userId) {
     due_date: t.dueDate || null,
     priority: t.priority || 'medium',
     done: t.done || false,
+    done_at: t.doneAt || null,
     note: t.note || null,
     created_at: t.createdAt || new Date().toISOString()
   };
@@ -89,11 +95,11 @@ function errorToRow(e, userId) {
     user_id: userId,
     subject_id: e.subjectId || null,
     topic: e.topic || null,
-    question: e.question || null,
-    answer: e.answer || null,
-    note: e.note || null,
-    difficulty: e.difficulty || null,
-    source: e.source || null,
+    category: e.category || 'concept',
+    description: e.description || '',
+    resolution: e.resolution || '',
+    reviewed_at: e.reviewedAt || [],
+    repeated: e.repeated || 0,
     created_at: e.createdAt || new Date().toISOString(),
     is_demo: e.isDemo || false
   };
@@ -104,25 +110,32 @@ function mockToRow(m, userId) {
     id: m.id,
     user_id: userId,
     subject_id: m.subjectId || null,
-    taken_at: m.takenAt || m.date || null,
+    date: m.takenAt || m.date || null,
     score: m.score ?? null,
     max_score: m.maxScore ?? null,
-    duration_minutes: m.durationMinutes ?? null,
-    notes: m.notes || null,
+    note: m.note || m.notes || '',
     is_demo: m.isDemo || false
   };
 }
 
-const SUBJECT_UUIDS = {
-  'klr':  '10000000-0000-0000-0000-000000000001',
-  'math': '10000000-0000-0000-0000-000000000002',
-  'prog': '10000000-0000-0000-0000-000000000003',
-  'kbs':  '10000000-0000-0000-0000-000000000004',
-};
+function shortHash(input) {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
+function subjectRowId(s, userId) {
+  const base = String(userId || '').replace(/-/g, '').padEnd(32, '0').slice(0, 24);
+  const hex = `${base}${shortHash(s.id || s.slug || s.name || 'subject')}`;
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
 
 function subjectToRow(s, userId) {
   return {
-    id: SUBJECT_UUIDS[s.id] || s.id,
+    id: subjectRowId(s, userId),
     user_id: userId,
     slug: s.id,
     name: s.name || '',
@@ -137,9 +150,9 @@ function reviewToRow(r, userId) {
   return {
     id: r.id,
     user_id: userId,
-    week_start: r.weekStart || null,
-    notes: r.notes || null,
-    rating: r.rating ?? null,
+    date: r.date || r.weekStart || r.createdAt || new Date().toISOString(),
+    good: r.good || '',
+    gap: r.gap || '',
     created_at: r.createdAt || new Date().toISOString()
   };
 }
@@ -153,6 +166,8 @@ function rowToSession(r) {
     endedAt: r.ended_at,
     durationSeconds: r.duration_seconds || 0,
     note: r.note || '',
+    tags: r.tags || [],
+    rating: r.rating || 0,
     tasks: r.tasks || [],
     isDemo: r.is_demo || false
   };
@@ -166,6 +181,7 @@ function rowToTodo(r) {
     dueDate: r.due_date || null,
     priority: r.priority || 'medium',
     done: r.done || false,
+    doneAt: r.done_at || null,
     note: r.note || '',
     createdAt: r.created_at
   };
@@ -176,11 +192,11 @@ function rowToError(r) {
     id: r.id,
     subjectId: r.subject_id,
     topic: r.topic || '',
-    question: r.question || '',
-    answer: r.answer || '',
-    note: r.note || '',
-    difficulty: r.difficulty || '',
-    source: r.source || '',
+    category: r.category || 'concept',
+    description: r.description || '',
+    resolution: r.resolution || '',
+    reviewedAt: r.reviewed_at || [],
+    repeated: r.repeated || 0,
     createdAt: r.created_at,
     isDemo: r.is_demo || false
   };
@@ -190,12 +206,11 @@ function rowToMock(r) {
   return {
     id: r.id,
     subjectId: r.subject_id,
-    takenAt: r.taken_at,
-    date: r.taken_at,
+    takenAt: r.date,
+    date: r.date,
     score: r.score ?? null,
     maxScore: r.max_score ?? null,
-    durationMinutes: r.duration_minutes ?? null,
-    notes: r.notes || '',
+    note: r.note || '',
     isDemo: r.is_demo || false
   };
 }
@@ -214,19 +229,46 @@ function rowToSubject(r) {
 function rowToReview(r) {
   return {
     id: r.id,
-    weekStart: r.week_start,
-    notes: r.notes || '',
-    rating: r.rating ?? null,
+    date: r.date,
+    good: r.good || '',
+    gap: r.gap || '',
     createdAt: r.created_at
   };
 }
 
 /* ── Profile (settings) ────────────────────────────────────── */
-async function upsertProfile(userId, settings) {
+function splitProfileSettings(raw = {}) {
+  const { [APP_DATA_KEY]: appData = {}, ...settings } = raw || {};
+  return { settings, appData };
+}
+
+function buildAppData(state) {
+  return {
+    schedulePrefs: state.schedulePrefs || null,
+    scheduleBlocks: state.scheduleBlocks || [],
+    achievements: state.achievements || {},
+    scheduleCache: scheduleSync.loadCache(),
+    eventSubjectMap: scheduleSync.loadOverrides()
+  };
+}
+
+async function upsertProfileSettings(userId, settings) {
+  const current = await supabase.from('profiles').select('settings').eq('id', userId).single();
+  const appData = current.data?.settings?.[APP_DATA_KEY] || {};
   await supabase.from('profiles').upsert({
     id: userId,
     name: settings.name || '',
-    settings,
+    settings: { ...settings, [APP_DATA_KEY]: appData },
+    updated_at: new Date().toISOString()
+  });
+}
+
+async function upsertProfileState(userId, state) {
+  const settings = state.settings || {};
+  await supabase.from('profiles').upsert({
+    id: userId,
+    name: settings.name || '',
+    settings: { ...settings, [APP_DATA_KEY]: buildAppData(state) },
     updated_at: new Date().toISOString()
   });
 }
@@ -268,14 +310,27 @@ export async function loadAllData(userId, defaultState) {
       }
     }
 
-    const settings = profile?.settings
-      ? { ...defaultState.settings, ...profile.settings, name: profile.name || defaultState.settings.name }
+    const { settings: profileSettings, appData } = splitProfileSettings(profile?.settings || {});
+
+    if (appData.scheduleCache) {
+      scheduleSync.saveCache(appData.scheduleCache.events || [], appData.scheduleCache.lastSyncedAt || null);
+    }
+    if (appData.eventSubjectMap) {
+      scheduleSync.saveOverrides(appData.eventSubjectMap);
+    }
+
+    const hasProfileSettings = Object.keys(profileSettings || {}).length > 0;
+    const settings = hasProfileSettings
+      ? { ...defaultState.settings, ...profileSettings, name: profile.name || profileSettings.name || defaultState.settings.name }
       : defaultState.settings;
 
     return {
       ...defaultState,
       settings,
       subjects,
+      schedulePrefs: appData.schedulePrefs || defaultState.schedulePrefs,
+      scheduleBlocks: appData.scheduleBlocks || defaultState.scheduleBlocks || [],
+      achievements: appData.achievements || defaultState.achievements || {},
       sessions:      (sessionsRaw || []).map(rowToSession),
       todos:         (todosRaw    || []).map(rowToTodo),
       errorLog:      (errorsRaw   || []).map(rowToError),
@@ -309,6 +364,7 @@ export const pushMock     = (m, uid) => push('upsert-mock', m, uid);
 export const pushSubject  = (s, uid) => push('upsert-subject', s, uid);
 export const pushReview   = (r, uid) => push('upsert-review', r, uid);
 export const pushSettings = (settings, uid) => push('upsert-settings', settings, uid);
+export const pushProfileState = (state, uid) => push('upsert-profile-data', state, uid);
 
 export const deleteSession = (id, uid) => push('delete-session', { id }, uid);
 export const deleteTodo    = (id, uid) => push('delete-todo', { id }, uid);
@@ -325,7 +381,13 @@ export async function migrateLocalData(localState, userId) {
       ...(localState.todos    || []).map(t => supabase.from('todos').upsert(todoToRow(t, userId))),
       ...(localState.errorLog || []).filter(e => !e.isDemo).map(e => supabase.from('error_log').upsert(errorToRow(e, userId))),
       ...(localState.mocks    || []).filter(m => !m.isDemo).map(m => supabase.from('mocks').upsert(mockToRow(m, userId))),
-      ...(localState.subjects || []).map(s => supabase.from('subjects').upsert(subjectToRow(s, userId)))
+      ...(localState.subjects || []).map(s => supabase.from('subjects').upsert(subjectToRow(s, userId))),
+      supabase.from('profiles').upsert({
+        id: userId,
+        name: localState.settings?.name || '',
+        settings: { ...(localState.settings || {}), [APP_DATA_KEY]: buildAppData(localState) },
+        updated_at: new Date().toISOString()
+      })
     ];
     // Run in chunks to avoid overwhelming the API
     const CHUNK = 20;

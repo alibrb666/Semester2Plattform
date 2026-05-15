@@ -24,6 +24,7 @@ import { Auth } from './auth.js';
 import * as Sync from './sync.js';
 
 const USER_KEY = 'learn.user_id';
+const DEFAULT_ICS_URL = 'https://calendar.google.com/calendar/ical/b4a4464084327a2a90ac105b62cd75812d520f372be512c64711d5a3a4848151%40group.calendar.google.com/public/basic.ics';
 
 let _launchAppStarted = false;
 let _routerVisualListener = false;
@@ -85,8 +86,8 @@ const DEFAULT_STATE = {
   achievements: { longestStreak:0, totalHours:0 },
   todos: [],
   schedulePrefs: {
-    source: 'manual',
-    icsUrl: '',
+    source: 'ics-url',
+    icsUrl: DEFAULT_ICS_URL,
     icsFileName: null,
     lastSyncedAt: null,
     lastError: null,
@@ -129,6 +130,7 @@ async function boot() {
           .then(stateData => {
             State.init(stateData);
             Storage.saveNow(stateData);
+            Sync.pushProfileState(State.get(), user.id);
             refreshCurrentView();
           });
       })
@@ -147,41 +149,55 @@ function showNameScreen() {
   setTimeout(() => screen.querySelector('#input-name')?.focus(), 100);
   void waitForLucide(10000).then(() => renderIcons(screen));
 
+  const showAuthError = message => {
+    const el = screen.querySelector('#auth-error');
+    if (!el) return;
+    el.textContent = message || '';
+    el.hidden = !message;
+  };
+
+  const startWithUser = async (user, name) => {
+    State.setUserId(user.id);
+    const cached = Storage.load();
+    const defaultBase = cached || JSON.parse(JSON.stringify(DEFAULT_STATE));
+    defaultBase.settings = {
+      ...defaultBase.settings,
+      name: defaultBase.settings?.name || name || user.user_metadata?.name || 'Nutzer'
+    };
+    State.init(defaultBase);
+    Storage.saveNow(defaultBase);
+    updateUserAvatar(user);
+    Sync.initOfflineHandling(user.id);
+    screen.setAttribute('hidden', '');
+    launchApp();
+    try {
+      if (cached) await Sync.migrateLocalData(defaultBase, user.id);
+      const stateData = await Sync.loadAllData(user.id, defaultBase);
+      State.init(stateData);
+      Storage.saveNow(stateData);
+      Sync.pushProfileState(State.get(), user.id);
+      refreshCurrentView();
+    } catch (e) {
+      console.warn('[Sync]', e);
+    }
+  };
+
+  const withBusy = async (btn, label, fn) => {
+    if (btn) { btn.disabled = true; btn.textContent = label; }
+    showAuthError('');
+    try { await fn(); }
+    catch (e) { showAuthError(e.message || String(e)); }
+    finally { if (btn) { btn.disabled = false; } }
+  };
+
   screen.querySelector('#btn-start')?.addEventListener('click', async () => {
     const name = screen.querySelector('#input-name')?.value.trim() || 'Nutzer';
     const btn = screen.querySelector('#btn-start');
-    if (btn) { btn.disabled = true; btn.textContent = 'Einen Moment…'; }
-
-    try {
-      const user = await Auth.getOrCreateUser(name);
-      State.setUserId(user.id);
-      updateUserAvatar(user);
-      Sync.initOfflineHandling(user.id);
-      const defaultBase = JSON.parse(JSON.stringify(DEFAULT_STATE));
-      defaultBase.settings.name = name;
-      State.init(defaultBase);
-      Storage.saveNow(defaultBase);
-      screen.setAttribute('hidden', '');
-      launchApp();
-      Sync.loadAllData(user.id, defaultBase)
-        .then(stateData => {
-          State.init(stateData);
-          Storage.saveNow(stateData);
-          refreshCurrentView();
-        })
-        .catch(e => console.warn('[Sync]', e));
-    } catch (e) {
-      // Offline-Fallback: ohne Sync starten
-      console.warn('Auth failed, starting offline:', e);
-      const defaultBase = JSON.parse(JSON.stringify(DEFAULT_STATE));
-      defaultBase.settings.name = name;
-      State.init(defaultBase);
-      Storage.saveNow(defaultBase);
-      screen.setAttribute('hidden', '');
-      launchApp();
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = 'Loslegen →'; }
-    }
+    await withBusy(btn, 'Öffne…', async () => {
+      const user = await Auth.signInWithUsername(name);
+      await startWithUser(user, name);
+    });
+    if (btn) btn.textContent = 'Öffnen';
   });
 
   screen.querySelector('#input-name')?.addEventListener('keydown', e => {

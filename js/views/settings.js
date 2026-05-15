@@ -230,7 +230,7 @@ export function renderSettings(container) {
           <div class="settings-section-title">Info</div>
           <div style="font-size:13px;color:var(--text-tertiary);line-height:1.8">
             <div>Version 1.0 · Lernplattform für DHBW-Klausurvorbereitung</div>
-            <div>Daten werden lokal im Browser gespeichert (localStorage).</div>
+            <div>Daten werden lokal gecacht und über den Username mit Supabase synchronisiert.</div>
             <div style="margin-top:8px">Klausuren: KLR/FiBu 21.07. · Mathe II 24.07. · Prog II 27.07. · KBS/IT 31.07.2026</div>
           </div>
         </section>
@@ -518,7 +518,7 @@ function _bindSettings(container, subjects) {
 
   container.querySelector('#sched-btn-sync')?.addEventListener('click', async () => {
     const urlInput = container.querySelector('#sched-ics-url');
-    const url = urlInput?.value?.trim() || '';
+    const url = scheduleSync.normalizeIcsUrl(urlInput?.value?.trim() || '');
 
     if (!url) {
       Toast.warning('URL fehlt', 'Bitte eine ICS-URL eintragen.');
@@ -529,6 +529,7 @@ function _bindSettings(container, subjects) {
     // URL sofort speichern, noch vor dem Sync-Versuch
     State.patchSchedulePrefs({ source: 'ics-url', icsUrl: url });
     Storage.saveNow(State.get());
+    if (urlInput) urlInput.value = url;
 
     const btn = container.querySelector('#sched-btn-sync');
     const originalText = btn?.textContent || '';

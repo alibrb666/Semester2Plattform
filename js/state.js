@@ -1,6 +1,8 @@
 import { Storage } from './storage.js';
 import * as Sync from './sync.js';
 
+const DEFAULT_ICS_URL = 'https://calendar.google.com/calendar/ical/b4a4464084327a2a90ac105b62cd75812d520f372be512c64711d5a3a4848151%40group.calendar.google.com/public/basic.ics';
+
 let _state = {};
 let _userId = null;
 const _subs = new Set();
@@ -113,7 +115,7 @@ export const State = {
 
   updateSettings(patch) {
     this.set({ settings: { ...this.getSettings(), ...patch } });
-    Sync.pushSettings(this.getSettings(), _userId);
+    Sync.pushProfileState(_state, _userId);
   },
 
   addWeeklyReview(review) {
@@ -123,26 +125,41 @@ export const State = {
 
   updateAchievements(patch) {
     this.set({ achievements: { ...this.getAchievements(), ...patch } });
-    // Achievements stored in localStorage only (no Supabase table)
+    Sync.pushProfileState(_state, _userId);
   },
 
-  /* Schedule blocks — localStorage only, no Supabase */
-  addBlock(block)           { this.set({ scheduleBlocks: [...this.getBlocks(), block] }); },
-  updateBlock(id, patch)    { this.set({ scheduleBlocks: this.getBlocks().map(b => b.id === id ? { ...b, ...patch } : b) }); },
-  removeBlock(id)           { this.set({ scheduleBlocks: this.getBlocks().filter(b => b.id !== id) }); },
+  /* Schedule blocks — synced via profiles.settings.__appData */
+  addBlock(block) {
+    this.set({ scheduleBlocks: [...this.getBlocks(), block] });
+    Sync.pushProfileState(_state, _userId);
+  },
+  updateBlock(id, patch) {
+    this.set({ scheduleBlocks: this.getBlocks().map(b => b.id === id ? { ...b, ...patch } : b) });
+    Sync.pushProfileState(_state, _userId);
+  },
+  removeBlock(id) {
+    this.set({ scheduleBlocks: this.getBlocks().filter(b => b.id !== id) });
+    Sync.pushProfileState(_state, _userId);
+  },
 
-  /* Schedule prefs — localStorage only */
+  /* Schedule prefs — synced via profiles.settings.__appData */
   patchSchedulePrefs(patch) {
     const st = this.get();
     this.set({
       ...st,
       schedulePrefs: {
-        source: 'manual', icsUrl: '', icsFileName: null,
+        source: 'ics-url', icsUrl: DEFAULT_ICS_URL, icsFileName: null,
         lastSyncedAt: null, lastError: null, eventCount: 0, syncIntervalMinutes: 60,
         ...(st.schedulePrefs || {}),
         ...patch
       }
     });
+    Sync.pushProfileState(_state, _userId);
+  },
+
+  syncProfileData() {
+    Storage.saveNow(_state);
+    Sync.pushProfileState(_state, _userId);
   },
 
   removeDemoEntries() {

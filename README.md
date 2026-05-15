@@ -49,6 +49,20 @@ Speichert alle Daten als `lernplattform-YYYY-MM-DD.json`.
 **Importieren**: Dieselbe Seite → "Importieren" → JSON-Datei auswählen.  
 Überschreibt alle vorhandenen Daten (die App lädt danach neu).
 
+## Nutzer & Sync
+
+Für geräteübergreifende Synchronisation meldest du dich mit exakt demselben Username an. `Ali` und `ali` sind absichtlich unterschiedliche Profile.
+
+Synchronisiert werden Sessions, Todos, Fehlerbuch, Probeklausuren, Fächer, Reviews, Einstellungen sowie Kalenderdaten:
+
+- `schedulePrefs`
+- manuelle `scheduleBlocks`
+- ICS-Cache aus URL oder Datei
+- ICS-Fachzuordnungen (`eventSubjectMap`)
+- Achievements
+
+Der Username ist kein Passwort. Wer denselben Username kennt und eingibt, kann dasselbe Profil öffnen. Diese Variante ist für persönliche/private Nutzung gedacht.
+
 ---
 
 ## Architektur
@@ -112,7 +126,7 @@ Niemals Hex-Werte direkt im CSS — immer über Tokens wie `var(--accent)`.
 }
 ```
 
-Zusätzlich (nicht im Haupt-JSON): `localStorage['learn.v1.scheduleCache']` (ICS-Termine), `localStorage['learn.v1.eventSubjectMap']` (UID → `subjectId`).
+Zusätzlich lokal gespiegelt: `localStorage['learn.v1.scheduleCache']` (ICS-Termine), `localStorage['learn.v1.eventSubjectMap']` (UID → `subjectId`). Diese Daten werden zusätzlich im Supabase-Profil unter `profiles.settings.__appData` gespeichert.
 
 ### Stundenplan / ICS
 

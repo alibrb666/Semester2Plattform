@@ -72,10 +72,26 @@ const CORS_PROXIES = [
   url => `https://cors-anywhere.herokuapp.com/${url}`,
 ];
 
+export function normalizeIcsUrl(rawUrl) {
+  const raw = String(rawUrl || '').trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    if (url.hostname === 'calendar.google.com' && url.pathname === '/calendar/embed') {
+      const src = url.searchParams.get('src');
+      if (src) {
+        return `https://calendar.google.com/calendar/ical/${encodeURIComponent(src)}/public/basic.ics`;
+      }
+    }
+  } catch (_) {}
+  return raw;
+}
+
 export async function fetchIcsText(url) {
+  const fetchUrl = normalizeIcsUrl(url);
   // 1. Direkter Fetch
   try {
-    const r = await fetch(url, { mode: 'cors', cache: 'no-store' });
+    const r = await fetch(fetchUrl, { mode: 'cors', cache: 'no-store' });
     if (r.ok) {
       const text = await r.text();
       if (text.includes('BEGIN:VCALENDAR')) return text;
@@ -85,7 +101,7 @@ export async function fetchIcsText(url) {
   // 2. Proxy-Fallback-Kette
   for (const proxyFn of CORS_PROXIES) {
     try {
-      const r = await fetch(proxyFn(url), {
+      const r = await fetch(proxyFn(fetchUrl), {
         cache: 'no-store',
         headers: { 'Accept': 'text/calendar, text/plain, */*' }
       });

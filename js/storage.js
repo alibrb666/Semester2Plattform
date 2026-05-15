@@ -1,5 +1,6 @@
 const KEY = 'learn.v1';
 const CURRENT_VERSION = 2;
+const DEFAULT_ICS_URL = 'https://calendar.google.com/calendar/ical/b4a4464084327a2a90ac105b62cd75812d520f372be512c64711d5a3a4848151%40group.calendar.google.com/public/basic.ics';
 let _saveTimer = null;
 
 export const Storage = {
@@ -115,8 +116,8 @@ export const Storage = {
     }
     if (!data.schedulePrefs) {
       data.schedulePrefs = {
-        source: 'manual',
-        icsUrl: '',
+        source: 'ics-url',
+        icsUrl: DEFAULT_ICS_URL,
         icsFileName: null,
         lastSyncedAt: null,
         lastError: null,

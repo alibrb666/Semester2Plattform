@@ -749,6 +749,7 @@ function openIcsSubjectModal(icsId, subjects, container) {
   modal.el.querySelector('#ics-save')?.addEventListener('click', () => {
     const v = modal.el.querySelector('#ics-subject')?.value || '';
     scheduleSync.setEventSubjectOverride(icsId, v || null);
+    State.syncProfileData();
     modal.close();
     Toast.success('Zuordnung gespeichert');
     renderSchedule(container);
