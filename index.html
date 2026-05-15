@@ -225,7 +225,7 @@
 
     <!-- Auth overlay (shown when not logged in) -->
     <div class="auth-overlay" id="auth-overlay" hidden>
-      <div class="auth-card">
+      <form class="auth-card" id="auth-form" autocomplete="off">
         <div class="auth-logo">
           <span class="brand-mark">1.0</span>
         </div>
@@ -233,14 +233,13 @@
         <p class="auth-sub">Deine persönliche Klausurvorbereitung</p>
 
         <div class="auth-tabs">
-          <button class="auth-tab active" data-auth-tab="login">Anmelden</button>
-          <button class="auth-tab" data-auth-tab="register">Registrieren</button>
+          <button type="button" class="auth-tab active" data-auth-tab="login">Anmelden</button>
+          <button type="button" class="auth-tab" data-auth-tab="register">Registrieren</button>
         </div>
 
         <div id="auth-error" class="auth-error" hidden></div>
 
-        <!-- Shared form (same fields for login + register) -->
-        <form id="auth-form" class="auth-form">
+        <div class="auth-form">
           <div class="field">
             <label for="auth-username">Benutzername</label>
             <input class="input" id="auth-username" type="text"
@@ -257,11 +256,12 @@
               <input class="pin-digit" type="password" inputmode="numeric" maxlength="1" autocomplete="off" aria-label="PIN Stelle 4" />
             </div>
           </div>
-          <button type="submit" class="btn btn-primary" id="btn-auth-submit" style="width:100%;margin-top:4px">Anmelden</button>
-        </form>
+          <button type="submit" class="btn btn-primary" id="btn-auth-submit"
+            style="width:100%;padding:12px;font-size:15px;margin-top:4px">Anmelden</button>
+        </div>
 
         <div class="auth-hint" id="auth-hint"></div>
-      </div>
+      </form>
     </div>
 
     <!-- Migration banner (shown after login if localStorage data exists) -->

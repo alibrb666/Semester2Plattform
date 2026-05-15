@@ -490,6 +490,11 @@ function showAuthScreen() {
     }
   });
 
+  // Fallback: explicit click triggers form submit (for browsers that don't propagate)
+  overlay.querySelector('#btn-auth-submit')?.addEventListener('click', () => {
+    overlay.querySelector('#auth-form')?.requestSubmit();
+  });
+
   // Focus username on open
   setTimeout(() => overlay.querySelector('#auth-username')?.focus(), 100);
   void waitForLucide(10000).then(() => renderIcons(overlay));
