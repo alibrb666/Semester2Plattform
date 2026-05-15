@@ -114,38 +114,38 @@ export function renderSettings(container) {
                 <label for="sched-ics-url">ICS-URL deines Kalenders</label>
                 <input class="input" id="sched-ics-url" type="url" placeholder="https://calendar.google.com/calendar/ical/…" value="" />
               </div>
-              <details class=”sched-help-acc” style=”margin-top:8px”>
-                <summary style=”cursor:pointer;font-size:13px;color:var(--text-secondary)”>Wie bekomme ich die URL?</summary>
-                <div style=”font-size:12px;color:var(--text-tertiary);margin-top:8px;line-height:1.55”>
+              <details class="sched-help-acc" style="margin-top:8px">
+                <summary style="cursor:pointer;font-size:13px;color:var(--text-secondary)">Wie bekomme ich die URL?</summary>
+                <div style="font-size:12px;color:var(--text-tertiary);margin-top:8px;line-height:1.55">
                   <p><strong>Google Calendar:</strong> Nur die PRIVATE Adresse funktioniert (nicht die öffentliche). Einstellungen → Kalender → ganz nach unten → „Privatadresse im iCal-Format”. Die URL muss mit <code>secret=</code> enden.</p>
-                  <p style=”margin-top:6px”><strong>DHBW Rapla:</strong> In der Wochenansicht eine .ics-URL verwenden oder „Kalender abonnieren” / Rechtsklick → Link der Abonnement-URL.</p>
-                  <p style=”margin-top:6px”><strong>Wiederkehrende Termine</strong> werden automatisch für ±6 Monate expandiert. Falls Termine fehlen → ICS-Datei direkt hochladen (Google Calendar → Einstellungen → Import &amp; Export → Exportieren).</p>
-                  <p style=”margin-top:6px”><strong>CORS-Problem:</strong> Google blockiert direkte Browser-Anfragen. Die App versucht automatisch 3 verschiedene Proxy-Server. Wenn alle scheitern → Datei-Upload nutzen.</p>
+                  <p style="margin-top:6px"><strong>DHBW Rapla:</strong> In der Wochenansicht eine .ics-URL verwenden oder „Kalender abonnieren” / Rechtsklick → Link der Abonnement-URL.</p>
+                  <p style="margin-top:6px"><strong>Wiederkehrende Termine</strong> werden automatisch für ±6 Monate expandiert. Falls Termine fehlen → ICS-Datei direkt hochladen (Google Calendar → Einstellungen → Import &amp; Export → Exportieren).</p>
+                  <p style="margin-top:6px"><strong>CORS-Problem:</strong> Google blockiert direkte Browser-Anfragen. Die App versucht automatisch 3 verschiedene Proxy-Server. Wenn alle scheitern → Datei-Upload nutzen.</p>
                 </div>
               </details>
-              <div class=”sched-btn-row”>
-                <button type=”button” class=”btn btn-primary btn-sm” id=”sched-btn-sync”>
+              <div class="sched-btn-row">
+                <button type="button" class="btn btn-primary btn-sm" id="sched-btn-sync">
                   Verbinden &amp; jetzt synchronisieren
                 </button>
-                <button type=”button” class=”btn btn-ghost btn-sm” id=”sched-btn-disconnect”>
+                <button type="button" class="btn btn-ghost btn-sm" id="sched-btn-disconnect">
                   Verbindung trennen
                 </button>
               </div>
-              <div class=”field” style=”margin-top:12px” id=”sched-interval-wrap”>
-                <label for=”sched-interval”>Automatische Synchronisation alle</label>
-                <div style=”display:flex;align-items:center;gap:12px”>
-                  <select class=”select” id=”sched-interval” style=”max-width:160px”>
-                    <option value=”15”>15 Minuten</option>
-                    <option value=”30”>30 Minuten</option>
-                    <option value=”60”>1 Stunde</option>
-                    <option value=”180”>3 Stunden</option>
-                    <option value=”360”>6 Stunden</option>
-                    <option value=”720”>12 Stunden</option>
-                    <option value=”1440”>1 mal täglich</option>
+              <div class="field" style="margin-top:12px" id="sched-interval-wrap">
+                <label for="sched-interval">Automatische Synchronisation alle</label>
+                <div style="display:flex;align-items:center;gap:12px">
+                  <select class="select" id="sched-interval" style="max-width:160px">
+                    <option value="15">15 Minuten</option>
+                    <option value="30">30 Minuten</option>
+                    <option value="60">1 Stunde</option>
+                    <option value="180">3 Stunden</option>
+                    <option value="360">6 Stunden</option>
+                    <option value="720">12 Stunden</option>
+                    <option value="1440">1 mal täglich</option>
                   </select>
-                  <button type=”button” class=”btn btn-secondary btn-sm” id=”sched-btn-sync-now”>Jetzt synchronisieren</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="sched-btn-sync-now">Jetzt synchronisieren</button>
                 </div>
-                <div class=”field-hint” id=”sched-last-sync” style=”margin-top:6px;font-size:12px;color:var(--text-tertiary)”></div>
+                <div class="field-hint" id="sched-last-sync" style="margin-top:6px;font-size:12px;color:var(--text-tertiary)"></div>
               </div>
             </div>
             <div id="sched-panel-file" style="display:none">

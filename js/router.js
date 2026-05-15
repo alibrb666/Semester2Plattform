@@ -19,18 +19,24 @@ export const Router = {
   },
 
   navigate(route) {
-    window.location.hash = route;
+    const nextRoute = route || 'dashboard';
+    const currentHash = window.location.hash.replace('#', '');
+    if (currentHash === nextRoute) {
+      this._handle(true);
+      return;
+    }
+    window.location.hash = nextRoute;
   },
 
   current() { return _current; },
 
-  _handle() {
+  _handle(forceRender = false) {
     const hash = window.location.hash.slice(1) || 'dashboard';
     const [route] = hash.split('?');
     const view = document.getElementById('view-root');
     if (!view) return;
     const name = Object.keys(_routes).find(r => r === route) || 'dashboard';
-    if (name === _current) {
+    if (name === _current && !forceRender) {
       renderIcons(view);
       return;
     }

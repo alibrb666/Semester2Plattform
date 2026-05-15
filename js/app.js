@@ -105,8 +105,9 @@ async function boot() {
     const defaultBase = JSON.parse(JSON.stringify(DEFAULT_STATE));
     State.init(cached || defaultBase);
     launchApp();
-    // Explizit aktuelle Route rendern (Router._handle() überspringt wenn _current bereits gesetzt)
-    refreshCurrentView();
+    // Explizit aktuelle Route rendern, auch wenn der Hash bereits gesetzt ist.
+    const initialRoute = window.location.hash.replace('#', '') || 'dashboard';
+    Router.navigate(initialRoute);
     // Offline-Banner initial korrekt setzen
     if (navigator.onLine) document.getElementById('offline-banner')?.setAttribute('hidden', '');
 
