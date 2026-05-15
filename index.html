@@ -15,7 +15,8 @@
       // Theme bootstrap — runs BEFORE paint to prevent flash.
       (function () {
         try {
-          const raw = localStorage.getItem("learn.v1");
+          const uid = localStorage.getItem("learn.user_id");
+          const raw = (uid && localStorage.getItem("learn.v1:" + uid)) || localStorage.getItem("learn.v1");
           const stored = raw ? JSON.parse(raw) : null;
           const theme = stored?.settings?.theme || "dark";
           document.documentElement.setAttribute("data-theme", theme);
@@ -58,6 +59,14 @@
 
         <div class="topbar-right">
           <div class="sync-dot" id="sync-dot" data-active="false" aria-hidden="true"></div>
+          <button
+            class="icon-btn mobile-quick-capture"
+            data-action="quick-capture"
+            aria-label="Schnell erfassen (N)"
+            data-tooltip="Erfassen"
+          >
+            <i data-lucide="plus"></i>
+          </button>
           <button
             class="icon-btn"
             data-action="open-palette"
@@ -141,6 +150,15 @@
             <span class="phase-dot"></span>
             <span class="phase-label">Phase 1</span>
           </div>
+          <button
+            class="sidebar-quick-capture"
+            id="fab-quick-capture"
+            data-action="quick-capture"
+            aria-label="Schnell erfassen (N)"
+          >
+            <i data-lucide="plus"></i>
+            <span>Schnell erfassen</span>
+          </button>
           <div class="sidebar-foot-meta">
             <span id="sidebar-streak" class="streak-mini">🔥 0</span>
             <span class="sep">·</span>
@@ -189,17 +207,6 @@
         role="region"
         aria-label="Session Tracker"
       ></div>
-
-      <!-- Quick Capture FAB -->
-      <button
-        class="fab"
-        id="fab-quick-capture"
-        data-action="quick-capture"
-        aria-label="Schnell erfassen (N)"
-        data-tooltip="Erfassen (N)"
-      >
-        <i data-lucide="plus"></i>
-      </button>
 
       <!-- Toast container -->
       <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>

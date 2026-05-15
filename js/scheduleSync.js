@@ -6,6 +6,15 @@
 
 const CACHE_KEY = 'learn.v1.scheduleCache';
 const OVERRIDE_KEY = 'learn.v1.eventSubjectMap';
+let _userId = null;
+
+function key(base) {
+  return _userId ? `${base}:${_userId}` : base;
+}
+
+export function setUserId(userId) {
+  _userId = userId || null;
+}
 
 const HEURISTICS = [
   [/klr|kosten|finanzbuch|fibu|kostenrechnung/i, 'klr'],
@@ -16,7 +25,7 @@ const HEURISTICS = [
 
 export function loadCache() {
   try {
-    const raw = localStorage.getItem(CACHE_KEY);
+    const raw = localStorage.getItem(key(CACHE_KEY)) || (_userId ? localStorage.getItem(CACHE_KEY) : null);
     if (!raw) return { events: [], lastSyncedAt: null };
     return JSON.parse(raw);
   } catch {
@@ -26,7 +35,7 @@ export function loadCache() {
 
 export function saveCache(events, lastSyncedAt) {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ events: events || [], lastSyncedAt: lastSyncedAt || null }));
+    localStorage.setItem(key(CACHE_KEY), JSON.stringify({ events: events || [], lastSyncedAt: lastSyncedAt || null }));
   } catch (e) {
     console.warn('[scheduleSync] cache write failed', e);
   }
@@ -34,7 +43,7 @@ export function saveCache(events, lastSyncedAt) {
 
 export function loadOverrides() {
   try {
-    const raw = localStorage.getItem(OVERRIDE_KEY);
+    const raw = localStorage.getItem(key(OVERRIDE_KEY)) || (_userId ? localStorage.getItem(OVERRIDE_KEY) : null);
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
@@ -42,7 +51,7 @@ export function loadOverrides() {
 }
 
 export function saveOverrides(map) {
-  localStorage.setItem(OVERRIDE_KEY, JSON.stringify(map || {}));
+  localStorage.setItem(key(OVERRIDE_KEY), JSON.stringify(map || {}));
 }
 
 export function setEventSubjectOverride(eventId, subjectId) {

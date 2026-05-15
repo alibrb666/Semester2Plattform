@@ -469,6 +469,8 @@ function _bindSettings(container, subjects) {
     modal.el.querySelector('#reset-confirm')?.addEventListener('click', () => {
       Storage.clear();
       localStorage.removeItem('learn.user_id');
+      localStorage.removeItem('learn.auth_mode');
+      localStorage.removeItem('learn.username');
       modal.close();
       location.reload();
     });

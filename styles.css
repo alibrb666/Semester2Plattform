@@ -353,6 +353,41 @@ html[data-sidebar="collapsed"] .sidebar-foot { align-items: center; }
 html[data-sidebar="collapsed"] .sidebar-foot-meta { display: none; }
 html[data-sidebar="collapsed"] .phase-pill .phase-label { display: none; }
 
+.sidebar-quick-capture {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: 7px 10px;
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 10px 24px -18px var(--accent);
+  cursor: pointer;
+  transition: background 150ms var(--ease), transform 150ms var(--ease), box-shadow 150ms var(--ease);
+}
+.sidebar-quick-capture:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px -20px var(--accent-hover);
+}
+.sidebar-quick-capture:active { transform: scale(.98); }
+.sidebar-quick-capture:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sidebar-quick-capture svg { width: 15px; height: 15px; flex-shrink: 0; }
+.mobile-quick-capture { display: none; }
+
+html[data-sidebar="collapsed"] .sidebar-quick-capture {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: var(--r-pill);
+}
+html[data-sidebar="collapsed"] .sidebar-quick-capture span { display: none; }
+
 /* ============================================================
    MAIN
    ============================================================ */
@@ -1046,12 +1081,14 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
 .qc-backdrop.leaving { animation: backdrop-out 200ms var(--ease) forwards; }
 .qc-card {
   width: 100%; max-width: 440px;
+  max-height: calc(100dvh - 2 * var(--sp-6));
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-lg);
   padding: var(--sp-6);
   display: flex; flex-direction: column; gap: var(--sp-4);
+  overflow-y: auto;
   animation: modal-in 300ms var(--ease);
 }
 .qc-type-tabs {
@@ -1067,6 +1104,17 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
   transition: background 150ms var(--ease), color 150ms var(--ease);
 }
 .qc-tab.active { background: var(--bg-elevated); color: var(--text-primary); }
+.qc-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: 4px;
+  min-width: 0;
+  width: 100%;
+}
+.qc-actions .btn {
+  justify-content: center;
+}
 
 /* ============================================================
    WELCOME SCREEN
@@ -1837,6 +1885,7 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
   .topbar-left { width: auto; }
   .topbar { padding: 0 var(--sp-3); gap: var(--sp-2); }
   .topbar-right { margin-left: auto; }
+  .mobile-quick-capture { display: flex; }
   .brand-mini { display: none; }
   .main {
     min-width: 0;
@@ -1949,13 +1998,6 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .fab {
-    bottom: calc(62px + max(env(safe-area-inset-bottom), 8px) + 80px + var(--sp-3));
-    right: var(--sp-4);
-  }
-  .session-widget[data-state="running"] ~ .fab,
-  .session-widget[data-state="paused"]  ~ .fab { display: none; }
-
   .topbar-countdowns { display: none; }
   .schedule-header {
     padding: var(--sp-4);
@@ -2129,11 +2171,6 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
     bottom: calc(62px + max(env(safe-area-inset-bottom), 8px) + 8px);
     left: 8px;
     right: 8px;
-  }
-  .fab {
-    width: 48px;
-    height: 48px;
-    right: 14px;
   }
   .modal-backdrop,
   .qc-backdrop { padding-left: 8px; padding-right: 8px; }
@@ -2767,4 +2804,459 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
   .auth-card { padding: var(--sp-6); }
   .offline-banner { left: 0; }
   .migration-banner { bottom: calc(60px + max(env(safe-area-inset-bottom), 8px) + 8px); }
+}
+
+/* ============================================================
+   POLISH LAYER
+   ============================================================ */
+:root {
+  --dur-fast: 120ms;
+  --dur-med: 220ms;
+  --dur-slow: 420ms;
+  --surface-glow: rgba(139,92,246,0.18);
+  --surface-wash: radial-gradient(circle at top left, rgba(139,92,246,0.10), transparent 34rem),
+                  radial-gradient(circle at 85% 0%, rgba(6,182,212,0.08), transparent 28rem);
+}
+
+[data-theme="light"] {
+  --surface-glow: rgba(124,58,237,0.13);
+  --surface-wash: radial-gradient(circle at top left, rgba(124,58,237,0.08), transparent 34rem),
+                  radial-gradient(circle at 85% 0%, rgba(6,182,212,0.08), transparent 28rem);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--surface-wash);
+}
+
+html,
+body,
+.app-shell,
+.main,
+.view {
+  max-width: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+button,
+.btn,
+.icon-btn,
+.user-avatar,
+.mobile-tabs .tab {
+  flex-shrink: 0;
+}
+
+.btn {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.btn span,
+.btn,
+.nav-item span,
+.mobile-tabs .tab span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-row,
+.modal-footer,
+.sched-btn-row,
+.qc-actions,
+.export-actions,
+.danger-zone,
+.section-header,
+.schedule-header,
+.widget-actions {
+  min-width: 0;
+}
+
+.topbar,
+.sidebar,
+.mobile-tabs {
+  backdrop-filter: saturate(1.2) blur(18px);
+  -webkit-backdrop-filter: saturate(1.2) blur(18px);
+}
+
+.topbar {
+  background: color-mix(in srgb, var(--bg-surface) 90%, transparent);
+}
+
+.sidebar,
+.mobile-tabs {
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+}
+
+.main {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-base) 76%, transparent), var(--bg-base) 260px);
+}
+
+.view {
+  animation: view-enter var(--dur-slow) var(--ease);
+}
+
+@keyframes view-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.card,
+.settings-section,
+.errors-list-pane,
+.errors-detail-pane,
+.todos-filter-pane,
+.todos-list-pane,
+.modal,
+.qc-card,
+.cmd-box,
+.session-widget {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.025) inset, var(--shadow-sm);
+}
+
+.card,
+.subject-edit-card,
+.todo-item,
+.session-row,
+.session-item,
+.mock-item,
+.error-list-item,
+.suggestion-item,
+.countdown-pill,
+.nav-item,
+.mobile-tabs .tab,
+.btn,
+.icon-btn,
+.theme-option,
+.subject-pick-btn,
+.tag-opt,
+.qc-tab,
+.cmd-item {
+  transition-duration: var(--dur-med);
+  transition-timing-function: var(--ease);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent-hover) 86%, #fff));
+  box-shadow: 0 10px 26px -18px var(--accent);
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 32px -20px var(--accent-hover);
+}
+
+.btn-secondary:hover,
+.btn-ghost:hover,
+.icon-btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn:active,
+.icon-btn:active,
+.mobile-tabs .tab:active,
+.nav-item:active,
+.subject-card:active,
+.todo-item:active {
+  transform: scale(0.98);
+}
+
+.card-hover:hover,
+.subject-card:hover,
+.todo-item:hover,
+.session-row:hover,
+.session-item:hover,
+.mock-item:hover,
+.error-list-item:hover {
+  box-shadow: 0 16px 40px -30px var(--surface-glow), var(--shadow-md);
+}
+
+.hero {
+  position: relative;
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: min(240px, 70%);
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent), transparent);
+}
+
+.hero-greeting {
+  text-wrap: balance;
+}
+
+.hero-phase,
+.phase-pill,
+.badge,
+.countdown-pill {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.countdown-pill {
+  box-shadow: 0 8px 22px -20px rgba(0,0,0,.75);
+}
+
+.countdown-pill:hover {
+  transform: translateY(-1px);
+}
+
+.nav-item.active,
+.mobile-tabs .tab.active,
+.todos-filter-item.active,
+.error-list-item.active {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent) inset;
+}
+
+.mobile-tabs .tab {
+  position: relative;
+}
+
+.mobile-tabs .tab::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 22px;
+  height: 2px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  opacity: 0;
+  transform: translateX(-50%) scaleX(.45);
+  transition: opacity var(--dur-med) var(--ease), transform var(--dur-med) var(--ease);
+}
+
+.mobile-tabs .tab.active::before {
+  opacity: 1;
+  transform: translateX(-50%) scaleX(1);
+}
+
+.input,
+.select,
+.textarea {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.025) inset;
+}
+
+.input:hover,
+.select:hover,
+.textarea:hover {
+  border-color: var(--border-strong);
+}
+
+.progress-fill,
+.subject-progress-fill,
+.subject-goal-fill,
+.review-fach-fill {
+  background-image: linear-gradient(90deg, rgba(255,255,255,.12), transparent);
+}
+
+.heatmap-cell {
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+}
+
+.heatmap-cell:hover {
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+
+.schedule-block {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.time-indicator {
+  box-shadow: 0 0 14px var(--accent);
+}
+
+.modal-backdrop,
+.qc-backdrop,
+.cmd-backdrop {
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+
+.modal,
+.qc-card,
+.cmd-box {
+  background: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
+}
+
+.modal-title,
+.view-title,
+.settings-section-title,
+.detail-topic {
+  text-wrap: balance;
+}
+
+.toast {
+  background: color-mix(in srgb, var(--bg-overlay) 92%, transparent);
+}
+
+.sync-dot[data-active="true"] {
+  box-shadow: 0 0 0 4px var(--accent-muted);
+}
+
+.session-widget {
+  border-color: color-mix(in srgb, var(--border-default) 78%, var(--accent));
+}
+
+.widget-task.active {
+  background: color-mix(in srgb, var(--accent-muted) 55%, var(--bg-elevated));
+}
+
+.focus-mode::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px);
+  background-size: 100% 48px;
+  opacity: .18;
+}
+
+.focus-mode > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (hover: none) {
+  [data-tooltip]::after { display: none; }
+
+  .btn:hover,
+  .icon-btn:hover,
+  .card-hover:hover,
+  .subject-card:hover,
+  .todo-item:hover,
+  .session-row:hover,
+  .session-item:hover,
+  .mock-item:hover,
+  .error-list-item:hover,
+  .countdown-pill:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .topbar {
+    box-shadow: 0 10px 30px -28px rgba(0,0,0,.85);
+  }
+
+  .mobile-tabs {
+    box-shadow: 0 -18px 36px -32px rgba(0,0,0,.9);
+  }
+
+  .mobile-tabs .tab {
+    border-radius: var(--r-md);
+    margin: 4px 2px max(4px, env(safe-area-inset-bottom));
+  }
+
+  .topbar-right {
+    min-width: 0;
+    gap: 4px;
+  }
+
+  .modal-footer,
+  .sched-btn-row,
+  .qc-actions,
+  .export-actions,
+  .danger-zone {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .sched-btn-row .btn,
+  .qc-actions .btn,
+  .export-actions .btn,
+  .danger-zone .btn {
+    flex: 1 1 180px;
+    justify-content: center;
+  }
+
+  .mobile-tabs .tab.active {
+    background: var(--accent-muted);
+  }
+
+  .modal::before,
+  .qc-card::before {
+    content: '';
+    display: block;
+    width: 42px;
+    height: 4px;
+    margin: 10px auto 0;
+    border-radius: var(--r-pill);
+    background: var(--border-strong);
+  }
+
+  .dashboard-view > section,
+  .dashboard-view > .dash-row,
+  .review-banner,
+  .demo-mode-banner,
+  .suggestion-item {
+    animation: view-enter var(--dur-slow) var(--ease);
+  }
+
+  .schedule-grid-wrap,
+  .heatmap-container,
+  .todos-filter-pane {
+    scroll-snap-type: x proximity;
+  }
+
+  .schedule-day-col,
+  .heatmap-col,
+  .todos-filter-item {
+    scroll-snap-align: start;
+  }
+}
+
+@media (max-width: 480px) {
+  .view {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .card,
+  .settings-section,
+  .errors-list-pane,
+  .errors-detail-pane,
+  .todos-filter-pane,
+  .todos-list-pane {
+    border-radius: 12px;
+  }
+
+  .hero {
+    padding-top: 18px;
+  }
+
+  .topbar {
+    overflow: hidden;
+  }
+
+  .topbar-right .icon-btn,
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  .modal-footer .btn,
+  .settings-row > .btn,
+  .sched-btn-row .btn,
+  .qc-actions .btn,
+  .export-actions .btn,
+  .danger-zone .btn {
+    width: 100%;
+  }
+
+  .subject-card::before {
+    width: 4px;
+  }
 }

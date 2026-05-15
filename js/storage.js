@@ -2,11 +2,21 @@ const KEY = 'learn.v1';
 const CURRENT_VERSION = 2;
 const DEFAULT_ICS_URL = 'https://calendar.google.com/calendar/ical/b4a4464084327a2a90ac105b62cd75812d520f372be512c64711d5a3a4848151%40group.calendar.google.com/public/basic.ics';
 let _saveTimer = null;
+let _userId = null;
+
+function storageKey() {
+  return _userId ? `${KEY}:${_userId}` : KEY;
+}
 
 export const Storage = {
-  load() {
+  setUserId(userId) {
+    _userId = userId || null;
+  },
+
+  load(options = {}) {
+    const { allowLegacy = true } = options;
     try {
-      const raw = localStorage.getItem(KEY);
+      const raw = localStorage.getItem(storageKey()) || (allowLegacy && _userId ? localStorage.getItem(KEY) : null);
       if (!raw) return null;
       const data = JSON.parse(raw);
       if (!data.version || data.version < CURRENT_VERSION) {
@@ -33,13 +43,13 @@ export const Storage = {
 
   _write(data) {
     try {
-      localStorage.setItem(KEY, JSON.stringify(data));
+      localStorage.setItem(storageKey(), JSON.stringify(data));
     } catch (e) {
       if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
         console.warn('[Storage] Quota exceeded – trimming old sessions');
         try {
           const trimmed = { ...data, sessions: (data.sessions || []).slice(-200) };
-          localStorage.setItem(KEY, JSON.stringify(trimmed));
+          localStorage.setItem(storageKey(), JSON.stringify(trimmed));
         } catch (_) {}
       }
     }
@@ -47,7 +57,7 @@ export const Storage = {
 
   clear() {
     if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
-    localStorage.removeItem(KEY);
+    localStorage.removeItem(storageKey());
     try {
       localStorage.removeItem('learn.v1.scheduleCache');
       localStorage.removeItem('learn.v1.eventSubjectMap');

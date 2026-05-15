@@ -102,7 +102,7 @@ export const QuickCapture = {
           <button class="qc-tab ${currentType==='todo'?'active':''}" data-type="todo">Todo</button>
         </div>
         <div id="qc-fields">${buildFields(currentType, subjects)}</div>
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+        <div class="qc-actions">
           <button class="btn btn-ghost btn-sm" id="qc-cancel">Abbrechen</button>
           <button class="btn btn-primary btn-sm" id="qc-save">Speichern</button>
         </div>

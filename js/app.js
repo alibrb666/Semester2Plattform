@@ -22,6 +22,7 @@ import { renderTodos }     from './views/todos.js';
 import { renderIcons, setPhases, applySubjectColors } from './util.js';
 import { Auth } from './auth.js';
 import * as Sync from './sync.js';
+import * as ScheduleSync from './scheduleSync.js';
 
 const USER_KEY = 'learn.user_id';
 const DEFAULT_ICS_URL = 'https://calendar.google.com/calendar/ical/b4a4464084327a2a90ac105b62cd75812d520f372be512c64711d5a3a4848151%40group.calendar.google.com/public/basic.ics';
@@ -31,6 +32,12 @@ let _routerVisualListener = false;
 let _shortcutsDocBound = false;
 let _sessionSavedDocBound = false;
 let _actionDelegationBound = false;
+
+function setActiveUser(userId) {
+  State.setUserId(userId);
+  Storage.setUserId(userId);
+  ScheduleSync.setUserId(userId);
+}
 
 function refreshCurrentView() {
   const route = Router.current() || 'dashboard';
@@ -58,7 +65,9 @@ function refreshCurrentView() {
       <p style="color:var(--text-secondary);font-size:14px;margin-top:12px">${String(e?.message || e)}</p>
     </div>`;
   }
+  renderIcons(document.querySelector('.topbar'));
   renderIcons(document.getElementById('sidebar-nav'));
+  renderIcons(document.querySelector('.sidebar-foot'));
   renderIcons(document.getElementById('mobile-tabs'));
   renderIcons(document.getElementById('session-widget'));
 }
@@ -102,6 +111,7 @@ async function boot() {
 
   if (savedUserId) {
     // Bekannter User – direkt starten
+    setActiveUser(savedUserId);
     const cached = Storage.load();
     const defaultBase = JSON.parse(JSON.stringify(DEFAULT_STATE));
     State.init(cached || defaultBase);
@@ -120,7 +130,7 @@ async function boot() {
       })
       .then(user => {
         if (!user) return;
-        State.setUserId(user.id);
+        setActiveUser(user.id);
         updateUserAvatar(user);
         // Offline-Handling erst hier, wenn userId bekannt
         Sync.initOfflineHandling(user.id);
@@ -157,8 +167,8 @@ function showNameScreen() {
   };
 
   const startWithUser = async (user, name) => {
-    State.setUserId(user.id);
-    const cached = Storage.load();
+    setActiveUser(user.id);
+    const cached = Storage.load({ allowLegacy: false });
     const defaultBase = cached || JSON.parse(JSON.stringify(DEFAULT_STATE));
     defaultBase.settings = {
       ...defaultBase.settings,
@@ -248,7 +258,9 @@ function launchApp() {
     Router.onChange(() => {
       const vr = document.getElementById('view-root');
       if (vr) renderIcons(vr);
+      renderIcons(document.querySelector('.topbar'));
       renderIcons(document.getElementById('sidebar-nav'));
+      renderIcons(document.querySelector('.sidebar-foot'));
       renderIcons(document.getElementById('mobile-tabs'));
       renderIcons(document.getElementById('session-widget'));
     });
@@ -270,7 +282,9 @@ function launchApp() {
   void waitForLucide(15000).then(() => {
     const vr = document.getElementById('view-root');
     if (vr) renderIcons(vr);
+    renderIcons(document.querySelector('.topbar'));
     renderIcons(document.getElementById('sidebar-nav'));
+    renderIcons(document.querySelector('.sidebar-foot'));
     renderIcons(document.getElementById('mobile-tabs'));
     renderIcons(document.getElementById('session-widget'));
   });
@@ -278,21 +292,18 @@ function launchApp() {
 
 async function maybeRefreshIcsSchedule() {
   try {
-    const { fetchIcsText, parseIcsToEvents, saveCache,
-            shouldAutoSync, loadCache } = await import('./scheduleSync.js');
-
     const prefs = State.get().schedulePrefs;
     if (!prefs || prefs.source !== 'ics-url' || !prefs.icsUrl?.trim()) return;
 
-    const cache = loadCache();
+    const cache = ScheduleSync.loadCache();
     const cacheEmpty = !cache.events || cache.events.length === 0;
     const intervalMinutes = prefs.syncIntervalMinutes || 60;
 
-    if (!cacheEmpty && !shouldAutoSync(prefs.lastSyncedAt, intervalMinutes)) return;
+    if (!cacheEmpty && !ScheduleSync.shouldAutoSync(prefs.lastSyncedAt, intervalMinutes)) return;
 
-    const txt = await fetchIcsText(prefs.icsUrl.trim());
-    const evs = parseIcsToEvents(txt, 'ics-url');
-    saveCache(evs, new Date().toISOString());
+    const txt = await ScheduleSync.fetchIcsText(prefs.icsUrl.trim());
+    const evs = ScheduleSync.parseIcsToEvents(txt, 'ics-url');
+    ScheduleSync.saveCache(evs, new Date().toISOString());
     State.patchSchedulePrefs({
       lastSyncedAt: new Date().toISOString(),
       lastError: null,
@@ -353,9 +364,15 @@ function initActionDelegation() {
 
 function showAccountModal() {
   const modal = Modal.open({
-    title: 'Gerät',
+    title: 'Account',
     body: `
       <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="settings-row" style="border:none;padding:0">
+          <div>
+            <div class="settings-row-label">Username</div>
+            <div class="settings-row-sub" id="account-name">…</div>
+          </div>
+        </div>
         <div class="settings-row" style="border:none;padding:0">
           <div>
             <div class="settings-row-label">Nutzer-ID</div>
@@ -363,14 +380,28 @@ function showAccountModal() {
           </div>
         </div>
       </div>`,
-    footer: `<button class="btn btn-danger btn-sm" id="btn-device-reset">Gerät zurücksetzen</button>
+    footer: `<button class="btn btn-danger btn-sm" id="btn-logout">Logout</button>
+             <button class="btn btn-secondary btn-sm" id="btn-device-reset">Gerät zurücksetzen</button>
              <button class="btn btn-ghost btn-sm" id="btn-account-close">Schließen</button>`
   });
   Auth.getCurrentUser().then(u => {
-    const el = document.getElementById('account-uid');
-    if (el && u) el.textContent = u.id;
+    const uid = document.getElementById('account-uid');
+    const name = document.getElementById('account-name');
+    if (uid && u) uid.textContent = u.id;
+    if (name && u) name.textContent = u.user_metadata?.name || 'Nutzer';
   });
   modal.el.querySelector('#btn-account-close')?.addEventListener('click', () => modal.close());
+  modal.el.querySelector('#btn-logout')?.addEventListener('click', async () => {
+    modal.close();
+    try {
+      await Sync.pushProfileState(State.get(), State.getUserId());
+      await Auth.signOut();
+    } catch (e) {
+      console.warn('[Logout]', e);
+    }
+    Storage.saveNow(State.get());
+    location.reload();
+  });
   modal.el.querySelector('#btn-device-reset')?.addEventListener('click', async () => {
     modal.close();
     const confirmModal = Modal.open({
