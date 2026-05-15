@@ -105,6 +105,10 @@ async function boot() {
     const defaultBase = JSON.parse(JSON.stringify(DEFAULT_STATE));
     State.init(cached || defaultBase);
     launchApp();
+    // Explizit aktuelle Route rendern (Router._handle() überspringt wenn _current bereits gesetzt)
+    refreshCurrentView();
+    // Offline-Banner initial korrekt setzen
+    if (navigator.onLine) document.getElementById('offline-banner')?.setAttribute('hidden', '');
 
     // Auth + Sync im Hintergrund
     Auth.getCurrentUser()
@@ -116,6 +120,9 @@ async function boot() {
         if (!user) return;
         State.setUserId(user.id);
         updateUserAvatar(user);
+        // Offline-Handling erst hier, wenn userId bekannt
+        Sync.initOfflineHandling(user.id);
+        Sync.flushQueue(user.id);
         const base = cached || JSON.parse(JSON.stringify(DEFAULT_STATE));
         return Sync.loadAllData(user.id, base)
           .then(stateData => {
@@ -148,6 +155,7 @@ function showNameScreen() {
       const user = await Auth.getOrCreateUser(name);
       State.setUserId(user.id);
       updateUserAvatar(user);
+      Sync.initOfflineHandling(user.id);
       const defaultBase = JSON.parse(JSON.stringify(DEFAULT_STATE));
       defaultBase.settings.name = name;
       State.init(defaultBase);
@@ -238,13 +246,6 @@ function launchApp() {
         if (root) renderDashboard(root);
       }
     });
-  }
-
-  // Offline handling
-  const userId = State.getUserId();
-  if (userId) {
-    Sync.initOfflineHandling(userId);
-    Sync.flushQueue(userId);
   }
 
   maybeRefreshIcsSchedule();

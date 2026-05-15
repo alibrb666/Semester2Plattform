@@ -2357,6 +2357,7 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
   gap: 8px;
   z-index: 200;
 }
+.offline-banner[hidden] { display: none; }
 
 /* ── Migration banner ─────────────────────────────────────── */
 .migration-banner {
