@@ -19,10 +19,11 @@ import { renderErrors }    from './views/errors.js';
 import { renderMocks }     from './views/mocks.js';
 import { renderSettings }  from './views/settings.js';
 import { renderTodos }     from './views/todos.js';
-import { generateDemoData } from './demo.js';
 import { renderIcons, setPhases, applySubjectColors } from './util.js';
 import { Auth } from './auth.js';
 import * as Sync from './sync.js';
+
+const USER_KEY = 'learn.user_id';
 
 let _launchAppStarted = false;
 let _routerVisualListener = false;
@@ -31,7 +32,6 @@ let _sessionSavedDocBound = false;
 let _actionDelegationBound = false;
 
 function refreshCurrentView() {
-  console.log('[DEBUG] Refreshing current view');
   const route = Router.current() || 'dashboard';
   const view = document.getElementById('view-root');
   if (!view) return;
@@ -53,7 +53,7 @@ function refreshCurrentView() {
   } catch (e) {
     console.error('[refreshCurrentView]', route, e);
     view.innerHTML = `<div class="view" style="padding:24px;max-width:520px">
-      <div style="color:var(--danger);font-weight:600">Ansicht „${route}“ fehlgeschlagen</div>
+      <div style="color:var(--danger);font-weight:600">Ansicht „${route}" fehlgeschlagen</div>
       <p style="color:var(--text-secondary);font-size:14px;margin-top:12px">${String(e?.message || e)}</p>
     </div>`;
   }
@@ -63,14 +63,10 @@ function refreshCurrentView() {
 }
 
 /* ── Default state ─────────────────────────────────────────── */
-function defaultScheduleBlocks() {
-  return [];
-}
-
 const DEFAULT_STATE = {
   version: 2,
   settings: {
-    name: 'Lukas', theme: 'dark', sidebarCollapsed: false,
+    name: 'Nutzer', theme: 'dark', sidebarCollapsed: false,
     dailyGoalMinutes: 240,
     weeklyGoals: { klr:360, math:390, prog:360, kbs:300 },
     soundEnabled: true, notificationsEnabled: false, streakFreezeUsed: false
@@ -82,7 +78,7 @@ const DEFAULT_STATE = {
     { id:'kbs',  name:'KBS / IT',          color:'var(--subject-kbs)',  examDate:'2026-07-31' },
   ],
   sessions: [],
-  scheduleBlocks: defaultScheduleBlocks(),
+  scheduleBlocks: [],
   errorLog: [],
   mocks: [],
   weeklyReviews: [],
@@ -99,131 +95,88 @@ const DEFAULT_STATE = {
   }
 };
 
-function showAccountModal() {
-  const user = State.getUserId();
-  const modal = Modal.open({
-    title: 'Account',
-    body: `
-      <div style="display:flex;flex-direction:column;gap:12px">
-        <div class="settings-row" style="border:none;padding:0">
-          <div>
-            <div class="settings-row-label">Eingeloggt als</div>
-            <div class="settings-row-sub" id="account-email" style="font-family:var(--font-mono);font-size:12px">…</div>
-          </div>
-        </div>
-      </div>`,
-    footer: `<button class="btn btn-danger btn-sm" id="btn-signout">Abmelden</button>
-             <button class="btn btn-ghost btn-sm" id="btn-account-close">Schließen</button>`
-  });
-  Auth.getUser().then(u => {
-    const el = document.getElementById('account-email');
-    if (el && u) el.textContent = u.email;
-  });
-  modal.el.querySelector('#btn-account-close')?.addEventListener('click', () => modal.close());
-  modal.el.querySelector('#btn-signout')?.addEventListener('click', async () => {
-    modal.close();
-    try {
-      await Auth.signOut();
-    } catch (err) {
-      Toast.error('Abmeldung fehlgeschlagen', err.message);
-    }
-  });
-}
-
 /* ── Boot ───────────────────────────────────────────────────── */
 async function boot() {
-  try {
-    // Supabase Auth check
-    const session = await Auth.getSession();
-    if (session?.user) {
-      await bootWithUser(session.user);
-    } else {
-      showAuthScreen();
-    }
+  const savedUserId = localStorage.getItem(USER_KEY);
 
-    // Listen for auth state changes (login / logout)
-    Auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        hideAuthScreen();
-        if (!_launchAppStarted) {
-          await bootWithUser(session.user);
-        }
-      } else if (event === 'SIGNED_OUT') {
-        _launchAppStarted = false;
-        showAuthScreen();
-        State.setUserId(null);
-        State.init(JSON.parse(JSON.stringify(DEFAULT_STATE)));
-      }
-    });
-  } catch (e) {
-    console.error('[boot]', e);
-    // Fallback: show auth screen on error
-    showAuthScreen();
-  }
-}
-
-async function bootWithUser(user) {
-  try {
-    State.setUserId(user.id);
-    updateUserAvatar(user);
-
-    // Start app immediately with cached or default state
+  if (savedUserId) {
+    // Bekannter User – direkt starten
     const cached = Storage.load();
     const defaultBase = JSON.parse(JSON.stringify(DEFAULT_STATE));
     State.init(cached || defaultBase);
+    launchApp();
 
-    document.getElementById('auth-overlay')?.setAttribute('hidden', '');
-    if (!_launchAppStarted) launchApp();
-
-    // Sync im Hintergrund – Fehler dürfen App nicht blockieren
-    Sync.loadAllData(user.id, cached || defaultBase)
-      .then(stateData => {
-        State.init(stateData);
-        Storage.saveNow(stateData);
-        refreshCurrentView();
+    // Auth + Sync im Hintergrund
+    Auth.getCurrentUser()
+      .then(user => {
+        if (!user) return Auth.getOrCreateUser();
+        return user;
+      })
+      .then(user => {
+        if (!user) return;
+        State.setUserId(user.id);
+        updateUserAvatar(user);
+        const base = cached || JSON.parse(JSON.stringify(DEFAULT_STATE));
+        return Sync.loadAllData(user.id, base)
+          .then(stateData => {
+            State.init(stateData);
+            Storage.saveNow(stateData);
+            refreshCurrentView();
+          });
       })
       .catch(e => console.warn('[Boot] Sync failed:', e));
-
-    setPhases(State.getSettings().phases || null);
-    applySubjectColors(State.getSubjects());
-    Sync.initOfflineHandling(user.id);
-    Sync.flushQueue(user.id);
-
-    // Migration banner
-    const localRaw = localStorage.getItem('learn.v1');
-    if (localRaw) {
-      try {
-        const localData = JSON.parse(localRaw);
-        const hasSessions = (localData.sessions || []).filter(s => !s.isDemo).length > 0;
-        if (hasSessions) showMigrationBanner(localData, user.id);
-      } catch {}
-    }
-
-    void waitForLucide(15000).then(() => {
-      const vr = document.getElementById('view-root');
-      if (vr) renderIcons(vr);
-      renderIcons(document.getElementById('sidebar-nav'));
-      renderIcons(document.getElementById('mobile-tabs'));
-      renderIcons(document.getElementById('session-widget'));
-    });
-  } catch (e) {
-    console.error('[bootWithUser]', e);
+  } else {
+    // Neuer User – Name-Screen zeigen
     document.getElementById('app')?.removeAttribute('aria-busy');
-    const root = document.getElementById('view-root');
-    if (root) root.innerHTML = `<div class="view" style="padding:24px;max-width:560px">
-      <div class="view-title" style="color:var(--danger)">Start fehlgeschlagen</div>
-      <p style="color:var(--text-secondary);font-size:14px;margin-top:12px">${String(e?.message || e)}</p>
-    </div>`;
+    showNameScreen();
   }
 }
 
-function waitForLucide(ms = 5000) {
-  return new Promise(resolve => {
-    if (window.lucide) { resolve(); return; }
-    const interval = setInterval(() => {
-      if (window.lucide) { clearInterval(interval); resolve(); }
-    }, 50);
-    setTimeout(() => { clearInterval(interval); resolve(); }, ms);
+function showNameScreen() {
+  const screen = document.getElementById('name-screen');
+  if (!screen) return;
+  screen.removeAttribute('hidden');
+  setTimeout(() => screen.querySelector('#input-name')?.focus(), 100);
+  void waitForLucide(10000).then(() => renderIcons(screen));
+
+  screen.querySelector('#btn-start')?.addEventListener('click', async () => {
+    const name = screen.querySelector('#input-name')?.value.trim() || 'Nutzer';
+    const btn = screen.querySelector('#btn-start');
+    if (btn) { btn.disabled = true; btn.textContent = 'Einen Moment…'; }
+
+    try {
+      const user = await Auth.getOrCreateUser(name);
+      State.setUserId(user.id);
+      updateUserAvatar(user);
+      const defaultBase = JSON.parse(JSON.stringify(DEFAULT_STATE));
+      defaultBase.settings.name = name;
+      State.init(defaultBase);
+      Storage.saveNow(defaultBase);
+      screen.setAttribute('hidden', '');
+      launchApp();
+      Sync.loadAllData(user.id, defaultBase)
+        .then(stateData => {
+          State.init(stateData);
+          Storage.saveNow(stateData);
+          refreshCurrentView();
+        })
+        .catch(e => console.warn('[Sync]', e));
+    } catch (e) {
+      // Offline-Fallback: ohne Sync starten
+      console.warn('Auth failed, starting offline:', e);
+      const defaultBase = JSON.parse(JSON.stringify(DEFAULT_STATE));
+      defaultBase.settings.name = name;
+      State.init(defaultBase);
+      Storage.saveNow(defaultBase);
+      screen.setAttribute('hidden', '');
+      launchApp();
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Loslegen →'; }
+    }
+  });
+
+  screen.querySelector('#input-name')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') screen.querySelector('#btn-start')?.click();
   });
 }
 
@@ -234,11 +187,12 @@ function launchApp() {
   const app = document.getElementById('app');
   app?.removeAttribute('aria-busy');
 
-  /* Apply stored sidebar state */
   const settings = State.getSettings();
   if (settings.sidebarCollapsed) document.documentElement.dataset.sidebar = 'collapsed';
 
-  /* Register views */
+  setPhases(settings.phases || null);
+  applySubjectColors(State.getSubjects());
+
   Router.register('dashboard',  renderDashboard);
   Router.register('schedule',   renderSchedule);
   Router.register('sessions',   renderSessions);
@@ -248,7 +202,6 @@ function launchApp() {
   Router.register('mocks',      renderMocks);
   Router.register('settings',   renderSettings);
 
-  /* Init components */
   TopBar.init();
   Sidebar.init();
   SessionTracker.init();
@@ -263,7 +216,6 @@ function launchApp() {
     document.addEventListener('app:shortcuts', () => showShortcuts());
   }
 
-  /* Start router (triggers first render) */
   Router.init();
 
   if (!_routerVisualListener) {
@@ -277,7 +229,6 @@ function launchApp() {
     });
   }
 
-  /* Render after session saved */
   if (!_sessionSavedDocBound) {
     _sessionSavedDocBound = true;
     document.addEventListener('session:saved', () => {
@@ -289,7 +240,22 @@ function launchApp() {
     });
   }
 
+  // Offline handling
+  const userId = State.getUserId();
+  if (userId) {
+    Sync.initOfflineHandling(userId);
+    Sync.flushQueue(userId);
+  }
+
   maybeRefreshIcsSchedule();
+
+  void waitForLucide(15000).then(() => {
+    const vr = document.getElementById('view-root');
+    if (vr) renderIcons(vr);
+    renderIcons(document.getElementById('sidebar-nav'));
+    renderIcons(document.getElementById('mobile-tabs'));
+    renderIcons(document.getElementById('session-widget'));
+  });
 }
 
 async function maybeRefreshIcsSchedule() {
@@ -304,10 +270,8 @@ async function maybeRefreshIcsSchedule() {
     const cacheEmpty = !cache.events || cache.events.length === 0;
     const intervalMinutes = prefs.syncIntervalMinutes || 60;
 
-    // Sync wenn: Cache leer ODER Intervall abgelaufen
     if (!cacheEmpty && !shouldAutoSync(prefs.lastSyncedAt, intervalMinutes)) return;
 
-    console.log('[App] Auto-sync Kalender…');
     const txt = await fetchIcsText(prefs.icsUrl.trim());
     const evs = parseIcsToEvents(txt, 'ics-url');
     saveCache(evs, new Date().toISOString());
@@ -317,12 +281,21 @@ async function maybeRefreshIcsSchedule() {
       eventCount: evs.length
     });
     Storage.saveNow(State.get());
-    console.log(`[App] Kalender synct: ${evs.length} Termine`);
   } catch (err) {
     console.warn('[App] Auto-sync fehlgeschlagen:', err.message);
     State.patchSchedulePrefs({ lastError: err.code || 'SYNC' });
     Storage.saveNow(State.get());
   }
+}
+
+function waitForLucide(ms = 5000) {
+  return new Promise(resolve => {
+    if (window.lucide) { resolve(); return; }
+    const interval = setInterval(() => {
+      if (window.lucide) { clearInterval(interval); resolve(); }
+    }, 50);
+    setTimeout(() => { clearInterval(interval); resolve(); }, ms);
+  });
 }
 
 function initKeyboard() {
@@ -342,7 +315,6 @@ function initKeyboard() {
   });
 }
 
-/** Single global delegation for every `[data-action]` control (shell, FAB, future views). */
 function initActionDelegation() {
   if (_actionDelegationBound) return;
   _actionDelegationBound = true;
@@ -358,6 +330,45 @@ function initActionDelegation() {
       case 'open-account':   showAccountModal(); break;
       default: break;
     }
+  });
+}
+
+function showAccountModal() {
+  const modal = Modal.open({
+    title: 'Gerät',
+    body: `
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="settings-row" style="border:none;padding:0">
+          <div>
+            <div class="settings-row-label">Nutzer-ID</div>
+            <div class="settings-row-sub" id="account-uid" style="font-family:var(--font-mono);font-size:11px;word-break:break-all">…</div>
+          </div>
+        </div>
+      </div>`,
+    footer: `<button class="btn btn-danger btn-sm" id="btn-device-reset">Gerät zurücksetzen</button>
+             <button class="btn btn-ghost btn-sm" id="btn-account-close">Schließen</button>`
+  });
+  Auth.getCurrentUser().then(u => {
+    const el = document.getElementById('account-uid');
+    if (el && u) el.textContent = u.id;
+  });
+  modal.el.querySelector('#btn-account-close')?.addEventListener('click', () => modal.close());
+  modal.el.querySelector('#btn-device-reset')?.addEventListener('click', async () => {
+    modal.close();
+    const confirmModal = Modal.open({
+      title: 'Gerät zurücksetzen?',
+      size: 'sm',
+      body: '<p style="color:var(--text-secondary);font-size:14px;line-height:1.55">Alle lokalen Daten werden gelöscht. Beim nächsten Start erscheint der Name-Screen wieder.<br><br>Daten in der Cloud bleiben erhalten — du kannst dich auf einem anderen Gerät wieder einloggen.</p>',
+      footer: `<button class="btn btn-ghost" id="device-reset-cancel">Abbrechen</button>
+               <button class="btn btn-danger" id="device-reset-confirm">Zurücksetzen</button>`
+    });
+    confirmModal.el.querySelector('#device-reset-cancel')?.addEventListener('click', () => confirmModal.close());
+    confirmModal.el.querySelector('#device-reset-confirm')?.addEventListener('click', async () => {
+      confirmModal.close();
+      try { await Auth.signOut(); } catch {}
+      Storage.clear();
+      location.reload();
+    });
   });
 }
 
@@ -396,176 +407,13 @@ function showShortcuts() {
   renderIcons(document.querySelector('.modal'));
 }
 
-/* ── Auth Screen ────────────────────────────────────────────── */
-function showAuthScreen() {
-  document.getElementById('app')?.removeAttribute('aria-busy');
-  const overlay = document.getElementById('auth-overlay');
-  if (!overlay) return;
-  overlay.removeAttribute('hidden');
-
-  let _authMode = 'login'; // 'login' | 'register'
-
-  // Tab switching
-  overlay.querySelectorAll('[data-auth-tab]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      _authMode = btn.dataset.authTab;
-      overlay.querySelectorAll('[data-auth-tab]').forEach(b =>
-        b.classList.toggle('active', b.dataset.authTab === _authMode));
-      const submitBtn = overlay.querySelector('#btn-auth-submit');
-      if (submitBtn) submitBtn.textContent = _authMode === 'login' ? 'Anmelden' : 'Registrieren';
-      clearAuthError();
-      overlay.querySelector('#auth-hint').textContent = '';
-    });
-  });
-
-  // PIN auto-focus logic
-  const digits = overlay.querySelectorAll('.pin-digit');
-  digits.forEach((input, i) => {
-    input.addEventListener('input', () => {
-      input.value = input.value.replace(/\D/g, '').slice(-1);
-      if (input.value && i < digits.length - 1) digits[i + 1].focus();
-      input.classList.toggle('filled', !!input.value);
-    });
-    input.addEventListener('keydown', e => {
-      if (e.key === 'Backspace' && !input.value && i > 0) {
-        digits[i - 1].focus();
-        digits[i - 1].value = '';
-        digits[i - 1].classList.remove('filled');
-      }
-    });
-    // Paste support: paste 4 digits into all fields
-    input.addEventListener('paste', e => {
-      e.preventDefault();
-      const text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 4);
-      digits.forEach((d, j) => {
-        d.value = text[j] || '';
-        d.classList.toggle('filled', !!d.value);
-      });
-      digits[Math.min(text.length, 3)].focus();
-    });
-  });
-
-  // Form submit (handles both login + register)
-  overlay.querySelector('#auth-form')?.addEventListener('submit', async e => {
-    e.preventDefault();
-    const username = overlay.querySelector('#auth-username').value.trim();
-    const pin      = [...digits].map(d => d.value).join('');
-
-    // Validate
-    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
-      showAuthError('Benutzername: 3–20 Zeichen, nur Buchstaben, Zahlen und _');
-      return;
-    }
-    if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
-      showAuthError('PIN muss genau 4 Ziffern (0–9) enthalten.');
-      return;
-    }
-
-    setAuthLoading(true);
-    clearAuthError();
-    try {
-      if (_authMode === 'login') {
-        await Auth.signIn(username, pin);
-        // onAuthStateChange fires → hideAuthScreen + bootWithUser
-      } else {
-        await Auth.signUp(username, pin);
-        // Supabase email confirm is OFF → user is logged in immediately
-        // If not, show hint
-        showAuthHint('Konto erstellt! Du wirst automatisch angemeldet…');
-      }
-    } catch (err) {
-      showAuthError(err.message || (_authMode === 'login' ? 'Anmeldung fehlgeschlagen.' : 'Registrierung fehlgeschlagen.'));
-    } finally {
-      setAuthLoading(false);
-    }
-  });
-
-  // Fallback: explicit click triggers form submit (for browsers that don't propagate)
-  overlay.querySelector('#btn-auth-submit')?.addEventListener('click', () => {
-    overlay.querySelector('#auth-form')?.requestSubmit();
-  });
-
-  // Focus username on open
-  setTimeout(() => overlay.querySelector('#auth-username')?.focus(), 100);
-  void waitForLucide(10000).then(() => renderIcons(overlay));
-}
-
-function hideAuthScreen() {
-  document.getElementById('auth-overlay')?.setAttribute('hidden', '');
-}
-
-function showAuthError(msg) {
-  const el = document.getElementById('auth-error');
-  if (!el) return;
-  el.textContent = msg;
-  el.removeAttribute('hidden');
-}
-function clearAuthError() {
-  const el = document.getElementById('auth-error');
-  if (el) { el.textContent = ''; el.setAttribute('hidden', ''); }
-}
-function showAuthHint(msg) {
-  const el = document.getElementById('auth-hint');
-  if (el) el.textContent = msg;
-}
-function setAuthLoading(on) {
-  const btn = document.getElementById('btn-auth-submit');
-  if (btn) btn.disabled = on;
-}
-
 function updateUserAvatar(user) {
   const avatar  = document.getElementById('user-avatar');
   const initial = document.getElementById('user-initial');
   if (!avatar || !initial) return;
-  const name = user.user_metadata?.name || user.email || '?';
+  const name = State.getSettings()?.name || user.user_metadata?.name || '?';
   initial.textContent = name.charAt(0).toUpperCase();
   avatar.dataset.tooltip = name;
-}
-
-/* ── Migration banner ───────────────────────────────────────── */
-function showMigrationBanner(localData, userId) {
-  const banner = document.getElementById('migration-banner');
-  if (!banner) return;
-  banner.removeAttribute('hidden');
-  void waitForLucide(10000).then(() => renderIcons(banner));
-
-  banner.querySelector('#btn-migrate')?.addEventListener('click', async () => {
-    banner.setAttribute('hidden', '');
-    try {
-      await Sync.migrateLocalData(localData, userId);
-      Toast.success('Migration abgeschlossen', 'Lokale Daten wurden übertragen.');
-    } catch (err) {
-      Toast.error('Migration fehlgeschlagen', err.message);
-    }
-  });
-  banner.querySelector('#btn-migrate-skip')?.addEventListener('click', () => {
-    banner.setAttribute('hidden', '');
-  });
-}
-
-/* ── Welcome Screen ─────────────────────────────────────────── */
-function showWelcome() {
-  const welcome = document.getElementById('welcome');
-  if (!welcome) return;
-  welcome.removeAttribute('hidden');
-
-  renderIcons(welcome);
-
-  welcome.querySelector('[data-welcome="demo"]')?.addEventListener('click', () => {
-    const demoData = generateDemoData(JSON.parse(JSON.stringify(DEFAULT_STATE)));
-    State.init(demoData);
-    Storage.saveNow(demoData);
-    welcome.setAttribute('hidden', '');
-    refreshCurrentView();
-  });
-
-  welcome.querySelector('[data-welcome="empty"]')?.addEventListener('click', () => {
-    const fresh = JSON.parse(JSON.stringify(DEFAULT_STATE));
-    State.init(fresh);
-    Storage.saveNow(fresh);
-    welcome.setAttribute('hidden', '');
-    refreshCurrentView();
-  });
 }
 
 boot();

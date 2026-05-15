@@ -1,63 +1,43 @@
 import { supabase } from './supabase.js';
 
-function credentials(username, pin) {
-  const u = username.toLowerCase().trim();
-  return {
-    email: u + '@lernplattform.local',
-    password: 'LP_' + pin + '_' + u
-  };
-}
+const USER_KEY = 'learn.user_id';
 
 export const Auth = {
-  async signUp(username, pin) {
-    const { email, password } = credentials(username, pin);
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { name: username.trim() } }
-    });
-    if (error) throw error;
-    if (data.user) {
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
-        name: username.trim(),
-        settings: {},
-        updated_at: new Date().toISOString()
-      });
+  async getOrCreateUser(name) {
+    const savedId = localStorage.getItem(USER_KEY);
+
+    if (savedId) {
+      const { data } = await supabase.auth.getSession();
+      if (data?.session) return data.session.user;
+
+      // Session abgelaufen – neu anonym einloggen
+      const { data: d2, error } = await supabase.auth.signInAnonymously();
+      if (error) throw error;
+      localStorage.setItem(USER_KEY, d2.user.id);
+      return d2.user;
     }
-    return data;
-  },
 
-  async signIn(username, pin) {
-    const { email, password } = credentials(username, pin);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      if (error.message.toLowerCase().includes('invalid login credentials')) {
-        throw new Error('Benutzername oder PIN falsch.');
-      }
-      throw error;
-    }
-    return data;
-  },
-
-  async signOut() {
-    const { error } = await supabase.auth.signOut();
+    // Neuer User – anonym registrieren
+    const { data, error } = await supabase.auth.signInAnonymously();
     if (error) throw error;
-  },
 
-  async getUser() {
-    const { data: { user } } = await supabase.auth.getUser();
-    return user;
-  },
-
-  async getSession() {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session;
-  },
-
-  onAuthStateChange(callback) {
-    return supabase.auth.onAuthStateChange((event, session) => {
-      callback(event, session);
+    localStorage.setItem(USER_KEY, data.user.id);
+    await supabase.from('profiles').upsert({
+      id: data.user.id,
+      name: name || 'Nutzer',
+      settings: {}
     });
+
+    return data.user;
+  },
+
+  async getCurrentUser() {
+    const { data } = await supabase.auth.getSession();
+    return data?.session?.user || null;
+  },
+
+  signOut() {
+    localStorage.removeItem(USER_KEY);
+    return supabase.auth.signOut();
   }
 };

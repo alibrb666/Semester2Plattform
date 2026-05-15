@@ -468,6 +468,7 @@ function _bindSettings(container, subjects) {
     modal.el.querySelector('#reset-cancel')?.addEventListener('click', () => modal.close());
     modal.el.querySelector('#reset-confirm')?.addEventListener('click', () => {
       Storage.clear();
+      localStorage.removeItem('learn.user_id');
       modal.close();
       location.reload();
     });

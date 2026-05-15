@@ -202,75 +202,27 @@
       <canvas id="confetti" class="confetti" aria-hidden="true"></canvas>
     </div>
 
-    <!-- Welcome screen (first run) -->
-    <div class="welcome" id="welcome" hidden>
-      <div class="welcome-card">
-        <div class="welcome-mark">1.0</div>
-        <h1>Willkommen.</h1>
-        <p>
-          Deine persönliche Lernplattform für die vier Klausuren im Juli 2026.
-          Wähle, wie du starten möchtest.
+    <!-- Name screen (shown on first visit) -->
+    <div id=”name-screen” hidden>
+      <div class=”name-card”>
+        <div class=”auth-logo”>
+          <span class=”brand-mark”>1.0</span>
+        </div>
+        <h1 class=”auth-title”>Willkommen</h1>
+        <p class=”auth-sub”>Deine Lernplattform für die Klausurvorbereitung.</p>
+        <div class=”field”>
+          <label for=”input-name”>Wie heißt du?</label>
+          <input class=”input” id=”input-name” type=”text”
+            placeholder=”z.B. Ali” maxlength=”30”
+            autocomplete=”given-name” />
+        </div>
+        <button class=”btn btn-primary” id=”btn-start”
+          style=”width:100%;padding:12px;font-size:15px;margin-top:8px”>
+          Loslegen →
+        </button>
+        <p style=”font-size:12px;color:var(--text-disabled);text-align:center;margin-top:16px”>
+          Daten werden automatisch zwischen deinen Geräten synchronisiert.
         </p>
-        <div class="welcome-actions">
-          <button class="btn btn-primary" data-welcome="demo">App zuerst kennenlernen</button>
-          <button class="btn btn-ghost" data-welcome="empty">Direkt loslegen</button>
-        </div>
-        <div class="welcome-hint">
-          „Kennenlernen“ lädt Beispiel-Sessions, Fehler und Mocks — nur zur Anschauung.
-          „Direkt loslegen“ startet leer für produktives Arbeiten.
-        </div>
-        <div class="welcome-foot">Du kannst Demo-Daten jederzeit in den Einstellungen löschen und neu starten. Daten bleiben lokal in deinem Browser.</div>
-      </div>
-    </div>
-
-    <!-- Auth overlay (shown when not logged in) -->
-    <div class="auth-overlay" id="auth-overlay" hidden>
-      <form class="auth-card" id="auth-form" autocomplete="off">
-        <div class="auth-logo">
-          <span class="brand-mark">1.0</span>
-        </div>
-        <h1 class="auth-title">Lernplattform</h1>
-        <p class="auth-sub">Deine persönliche Klausurvorbereitung</p>
-
-        <div class="auth-tabs">
-          <button type="button" class="auth-tab active" data-auth-tab="login">Anmelden</button>
-          <button type="button" class="auth-tab" data-auth-tab="register">Registrieren</button>
-        </div>
-
-        <div id="auth-error" class="auth-error" hidden></div>
-
-        <div class="auth-form">
-          <div class="field">
-            <label for="auth-username">Benutzername</label>
-            <input class="input" id="auth-username" type="text"
-              placeholder="z.B. ali" autocomplete="username"
-              pattern="[a-zA-Z0-9_]{3,20}" maxlength="20" required />
-            <div class="field-hint">3–20 Zeichen, Buchstaben / Zahlen / _</div>
-          </div>
-          <div class="field">
-            <label>PIN (4 Ziffern)</label>
-            <div class="pin-inputs" id="pin-inputs">
-              <input class="pin-digit" type="password" inputmode="numeric" maxlength="1" autocomplete="off" aria-label="PIN Stelle 1" />
-              <input class="pin-digit" type="password" inputmode="numeric" maxlength="1" autocomplete="off" aria-label="PIN Stelle 2" />
-              <input class="pin-digit" type="password" inputmode="numeric" maxlength="1" autocomplete="off" aria-label="PIN Stelle 3" />
-              <input class="pin-digit" type="password" inputmode="numeric" maxlength="1" autocomplete="off" aria-label="PIN Stelle 4" />
-            </div>
-          </div>
-          <button type="submit" class="btn btn-primary" id="btn-auth-submit"
-            style="width:100%;padding:12px;font-size:15px;margin-top:4px">Anmelden</button>
-        </div>
-
-        <div class="auth-hint" id="auth-hint"></div>
-      </form>
-    </div>
-
-    <!-- Migration banner (shown after login if localStorage data exists) -->
-    <div class="migration-banner" id="migration-banner" hidden>
-      <div class="migration-content">
-        <i data-lucide="database" style="width:16px;height:16px;flex-shrink:0"></i>
-        <span>Lokale Daten gefunden — in die Cloud übertragen?</span>
-        <button class="btn btn-primary btn-sm" id="btn-migrate">Übertragen</button>
-        <button class="btn btn-ghost btn-sm" id="btn-migrate-skip">Überspringen</button>
       </div>
     </div>
 

@@ -113,9 +113,16 @@ function mockToRow(m, userId) {
   };
 }
 
+const SUBJECT_UUIDS = {
+  'klr':  '10000000-0000-0000-0000-000000000001',
+  'math': '10000000-0000-0000-0000-000000000002',
+  'prog': '10000000-0000-0000-0000-000000000003',
+  'kbs':  '10000000-0000-0000-0000-000000000004',
+};
+
 function subjectToRow(s, userId) {
   return {
-    id: s.id,
+    id: SUBJECT_UUIDS[s.id] || s.id,
     user_id: userId,
     slug: s.id,
     name: s.name || '',
@@ -194,12 +201,13 @@ function rowToMock(r) {
 }
 
 function rowToSubject(r) {
+  const slug = r.slug || r.id;
   return {
-    id: r.id,
+    id: slug,
     name: r.name || '',
     colorHex: r.color_hex || null,
     examDate: r.exam_date || null,
-    color: r.color_hex ? r.color_hex : `var(--subject-${r.id})`
+    color: r.color_hex ? r.color_hex : `var(--subject-${slug})`
   };
 }
 
