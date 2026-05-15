@@ -167,32 +167,22 @@ async function bootWithUser(user) {
     State.setUserId(user.id);
     updateUserAvatar(user);
 
-    // Load from Supabase, fallback to localStorage cache
-    let stateData;
-    try {
-      const cached = Storage.load();
-      const defaultBase = JSON.parse(JSON.stringify(DEFAULT_STATE));
-      // Start with cache for instant render, then hydrate from Supabase
-      if (cached) {
-        State.init(cached);
-        launchApp();
-      }
-      stateData = await Sync.loadAllData(user.id, cached || defaultBase);
-      State.init(stateData);
-      Storage.saveNow(stateData);
-      if (!_launchAppStarted) launchApp();
-      else refreshCurrentView();
-    } catch (syncErr) {
-      console.warn('[boot] Supabase load failed, using local cache:', syncErr.message);
-      const cached = Storage.load();
-      if (cached) {
-        State.init(cached);
-      } else {
-        State.init(JSON.parse(JSON.stringify(DEFAULT_STATE)));
-      }
-      if (!_launchAppStarted) launchApp();
-      Toast.error('Sync-Fehler', 'Lokale Daten werden genutzt.');
-    }
+    // Start app immediately with cached or default state
+    const cached = Storage.load();
+    const defaultBase = JSON.parse(JSON.stringify(DEFAULT_STATE));
+    State.init(cached || defaultBase);
+
+    document.getElementById('auth-overlay')?.setAttribute('hidden', '');
+    if (!_launchAppStarted) launchApp();
+
+    // Sync im Hintergrund – Fehler dürfen App nicht blockieren
+    Sync.loadAllData(user.id, cached || defaultBase)
+      .then(stateData => {
+        State.init(stateData);
+        Storage.saveNow(stateData);
+        refreshCurrentView();
+      })
+      .catch(e => console.warn('[Boot] Sync failed:', e));
 
     setPhases(State.getSettings().phases || null);
     applySubjectColors(State.getSubjects());

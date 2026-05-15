@@ -250,9 +250,14 @@ export async function loadAllData(userId, defaultState) {
 
     // If no subjects in DB yet, seed them
     if (!remoteSubjects.length && defaultState.subjects?.length) {
-      await Promise.all(defaultState.subjects.map(s =>
-        supabase.from('subjects').upsert(subjectToRow(s, userId))
-      ));
+      try {
+        const results = await Promise.all(
+          defaultState.subjects.map(s => supabase.from('subjects').upsert(subjectToRow(s, userId)))
+        );
+        results.forEach(({ error }) => { if (error) console.warn('[Sync] subjects:', error.message); });
+      } catch (e) {
+        console.warn('[Sync] subjects exception:', e);
+      }
     }
 
     const settings = profile?.settings
