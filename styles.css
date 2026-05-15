@@ -2244,6 +2244,43 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
   min-height: 16px;
 }
 
+.field-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+
+/* ── PIN input ────────────────────────────────────────────── */
+.pin-inputs {
+  display: flex;
+  gap: var(--sp-3);
+  justify-content: center;
+  margin-top: 4px;
+}
+.pin-digit {
+  width: 52px;
+  height: 56px;
+  text-align: center;
+  font-size: 24px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  border: 2px solid var(--border-default);
+  border-radius: var(--r-lg);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 150ms var(--ease), box-shadow 150ms var(--ease);
+  caret-color: transparent;
+  -moz-appearance: textfield;
+}
+.pin-digit::-webkit-inner-spin-button,
+.pin-digit::-webkit-outer-spin-button { -webkit-appearance: none; }
+.pin-digit:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+.pin-digit.filled { border-color: var(--border-strong); }
+
 /* ── User avatar ──────────────────────────────────────────── */
 .user-avatar {
   width: 30px;

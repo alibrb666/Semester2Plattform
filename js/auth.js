@@ -1,18 +1,26 @@
 import { supabase } from './supabase.js';
 
+function credentials(username, pin) {
+  const u = username.toLowerCase().trim();
+  return {
+    email: u + '@lernplattform.local',
+    password: 'LP_' + pin + '_' + u
+  };
+}
+
 export const Auth = {
-  async signUp(email, password, name) {
+  async signUp(username, pin) {
+    const { email, password } = credentials(username, pin);
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { name } }
+      options: { data: { name: username.trim() } }
     });
     if (error) throw error;
-    // Create profile row
     if (data.user) {
       await supabase.from('profiles').upsert({
         id: data.user.id,
-        name,
+        name: username.trim(),
         settings: {},
         updated_at: new Date().toISOString()
       });
@@ -20,9 +28,15 @@ export const Auth = {
     return data;
   },
 
-  async signIn(email, password) {
+  async signIn(username, pin) {
+    const { email, password } = credentials(username, pin);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
+    if (error) {
+      if (error.message.toLowerCase().includes('invalid login credentials')) {
+        throw new Error('Benutzername oder PIN falsch.');
+      }
+      throw error;
+    }
     return data;
   },
 

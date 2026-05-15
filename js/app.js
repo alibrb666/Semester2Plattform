@@ -413,50 +413,85 @@ function showAuthScreen() {
   if (!overlay) return;
   overlay.removeAttribute('hidden');
 
+  let _authMode = 'login'; // 'login' | 'register'
+
   // Tab switching
   overlay.querySelectorAll('[data-auth-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const tab = btn.dataset.authTab;
-      overlay.querySelectorAll('[data-auth-tab]').forEach(b => b.classList.toggle('active', b.dataset.authTab === tab));
-      overlay.querySelector('#auth-form-login').hidden  = tab !== 'login';
-      overlay.querySelector('#auth-form-register').hidden = tab !== 'register';
+      _authMode = btn.dataset.authTab;
+      overlay.querySelectorAll('[data-auth-tab]').forEach(b =>
+        b.classList.toggle('active', b.dataset.authTab === _authMode));
+      const submitBtn = overlay.querySelector('#btn-auth-submit');
+      if (submitBtn) submitBtn.textContent = _authMode === 'login' ? 'Anmelden' : 'Registrieren';
       clearAuthError();
+      overlay.querySelector('#auth-hint').textContent = '';
     });
   });
 
-  // Login
-  overlay.querySelector('#auth-form-login')?.addEventListener('submit', async e => {
+  // PIN auto-focus logic
+  const digits = overlay.querySelectorAll('.pin-digit');
+  digits.forEach((input, i) => {
+    input.addEventListener('input', () => {
+      input.value = input.value.replace(/\D/g, '').slice(-1);
+      if (input.value && i < digits.length - 1) digits[i + 1].focus();
+      input.classList.toggle('filled', !!input.value);
+    });
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !input.value && i > 0) {
+        digits[i - 1].focus();
+        digits[i - 1].value = '';
+        digits[i - 1].classList.remove('filled');
+      }
+    });
+    // Paste support: paste 4 digits into all fields
+    input.addEventListener('paste', e => {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 4);
+      digits.forEach((d, j) => {
+        d.value = text[j] || '';
+        d.classList.toggle('filled', !!d.value);
+      });
+      digits[Math.min(text.length, 3)].focus();
+    });
+  });
+
+  // Form submit (handles both login + register)
+  overlay.querySelector('#auth-form')?.addEventListener('submit', async e => {
     e.preventDefault();
-    const email    = overlay.querySelector('#login-email').value.trim();
-    const password = overlay.querySelector('#login-password').value;
+    const username = overlay.querySelector('#auth-username').value.trim();
+    const pin      = [...digits].map(d => d.value).join('');
+
+    // Validate
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+      showAuthError('Benutzername: 3–20 Zeichen, nur Buchstaben, Zahlen und _');
+      return;
+    }
+    if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+      showAuthError('PIN muss genau 4 Ziffern (0–9) enthalten.');
+      return;
+    }
+
     setAuthLoading(true);
+    clearAuthError();
     try {
-      await Auth.signIn(email, password);
-      // onAuthStateChange fires → hideAuthScreen + bootWithUser
+      if (_authMode === 'login') {
+        await Auth.signIn(username, pin);
+        // onAuthStateChange fires → hideAuthScreen + bootWithUser
+      } else {
+        await Auth.signUp(username, pin);
+        // Supabase email confirm is OFF → user is logged in immediately
+        // If not, show hint
+        showAuthHint('Konto erstellt! Du wirst automatisch angemeldet…');
+      }
     } catch (err) {
-      showAuthError(err.message || 'Anmeldung fehlgeschlagen.');
+      showAuthError(err.message || (_authMode === 'login' ? 'Anmeldung fehlgeschlagen.' : 'Registrierung fehlgeschlagen.'));
     } finally {
       setAuthLoading(false);
     }
   });
 
-  // Register
-  overlay.querySelector('#auth-form-register')?.addEventListener('submit', async e => {
-    e.preventDefault();
-    const name     = overlay.querySelector('#reg-name').value.trim();
-    const email    = overlay.querySelector('#reg-email').value.trim();
-    const password = overlay.querySelector('#reg-password').value;
-    setAuthLoading(true);
-    try {
-      await Auth.signUp(email, password, name);
-      showAuthHint('Bestätigungs-E-Mail gesendet! Bitte prüfe dein Postfach.');
-    } catch (err) {
-      showAuthError(err.message || 'Registrierung fehlgeschlagen.');
-    } finally {
-      setAuthLoading(false);
-    }
-  });
-
+  // Focus username on open
+  setTimeout(() => overlay.querySelector('#auth-username')?.focus(), 100);
   void waitForLucide(10000).then(() => renderIcons(overlay));
 }
 
@@ -479,10 +514,8 @@ function showAuthHint(msg) {
   if (el) el.textContent = msg;
 }
 function setAuthLoading(on) {
-  ['btn-login','btn-register'].forEach(id => {
-    const btn = document.getElementById(id);
-    if (btn) btn.disabled = on;
-  });
+  const btn = document.getElementById('btn-auth-submit');
+  if (btn) btn.disabled = on;
 }
 
 function updateUserAvatar(user) {

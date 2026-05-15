@@ -239,34 +239,25 @@
 
         <div id="auth-error" class="auth-error" hidden></div>
 
-        <!-- Login form -->
-        <form id="auth-form-login" class="auth-form">
+        <!-- Shared form (same fields for login + register) -->
+        <form id="auth-form" class="auth-form">
           <div class="field">
-            <label for="login-email">E-Mail</label>
-            <input class="input" id="login-email" type="email" placeholder="name@example.com" autocomplete="email" required />
+            <label for="auth-username">Benutzername</label>
+            <input class="input" id="auth-username" type="text"
+              placeholder="z.B. ali" autocomplete="username"
+              pattern="[a-zA-Z0-9_]{3,20}" maxlength="20" required />
+            <div class="field-hint">3–20 Zeichen, Buchstaben / Zahlen / _</div>
           </div>
           <div class="field">
-            <label for="login-password">Passwort</label>
-            <input class="input" id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" required />
+            <label>PIN (4 Ziffern)</label>
+            <div class="pin-inputs" id="pin-inputs">
+              <input class="pin-digit" type="password" inputmode="numeric" maxlength="1" autocomplete="off" aria-label="PIN Stelle 1" />
+              <input class="pin-digit" type="password" inputmode="numeric" maxlength="1" autocomplete="off" aria-label="PIN Stelle 2" />
+              <input class="pin-digit" type="password" inputmode="numeric" maxlength="1" autocomplete="off" aria-label="PIN Stelle 3" />
+              <input class="pin-digit" type="password" inputmode="numeric" maxlength="1" autocomplete="off" aria-label="PIN Stelle 4" />
+            </div>
           </div>
-          <button type="submit" class="btn btn-primary" id="btn-login" style="width:100%;margin-top:8px">Anmelden</button>
-        </form>
-
-        <!-- Register form -->
-        <form id="auth-form-register" class="auth-form" hidden>
-          <div class="field">
-            <label for="reg-name">Name</label>
-            <input class="input" id="reg-name" type="text" placeholder="Dein Name" autocomplete="name" required />
-          </div>
-          <div class="field">
-            <label for="reg-email">E-Mail</label>
-            <input class="input" id="reg-email" type="email" placeholder="name@example.com" autocomplete="email" required />
-          </div>
-          <div class="field">
-            <label for="reg-password">Passwort</label>
-            <input class="input" id="reg-password" type="password" placeholder="mind. 8 Zeichen" autocomplete="new-password" minlength="8" required />
-          </div>
-          <button type="submit" class="btn btn-primary" id="btn-register" style="width:100%;margin-top:8px">Konto erstellen</button>
+          <button type="submit" class="btn btn-primary" id="btn-auth-submit" style="width:100%;margin-top:4px">Anmelden</button>
         </form>
 
         <div class="auth-hint" id="auth-hint"></div>
