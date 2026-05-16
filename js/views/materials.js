@@ -3,7 +3,7 @@ import { uuid, formatDateShort, renderIcons } from '../util.js';
 import { Modal } from '../components/modal.js';
 import { Toast } from '../components/toast.js';
 import { t, translateDom } from '../i18n.js';
-import { loadHistory, appendMessage, clearHistory } from '../chatHistory.js';
+import { loadHistory, appendMessage, clearHistory, listConversations } from '../chatHistory.js';
 
 export function renderMaterials(container) {
   const subjects = State.getSubjects();
@@ -255,6 +255,12 @@ function openAssistantChat(materials, mocks, subjects) {
         </select>
       </div>
       <div class="field">
+        <label for="ai-history">Previous chats</label>
+        <select class="select" id="ai-history">
+          <option value="">— loading… —</option>
+        </select>
+      </div>
+      <div class="field">
         <label for="ai-model">LLM Model</label>
         <select class="select" id="ai-model">
           <option value="gemini-2.5-flash">gemini-2.5-flash</option>
@@ -274,6 +280,7 @@ function openAssistantChat(materials, mocks, subjects) {
   const log = modal.el.querySelector('#ai-chat-log');
   const input = modal.el.querySelector('#ai-chat-input');
   const srcSel = modal.el.querySelector('#ai-source');
+  const historySel = modal.el.querySelector('#ai-history');
   const modelSel = modal.el.querySelector('#ai-model');
 
   const append = (role, txt) => {
@@ -309,7 +316,9 @@ function openAssistantChat(materials, mocks, subjects) {
     if (!sourceId) return;
     if (!historyBySource.has(sourceId)) historyBySource.set(sourceId, []);
     historyBySource.get(sourceId).push({ role, content });
-    appendMessage(sourceId, role, content, pdfName).catch(() => {});
+    appendMessage(sourceId, role, content, pdfName)
+      .then(() => { if (role === 'assistant') refreshHistoryDropdown(); })
+      .catch(() => {});
   };
 
   const historyForRequest = (sourceId) => {
@@ -331,6 +340,28 @@ function openAssistantChat(materials, mocks, subjects) {
     renderHistory(sourceId);
     if (!historyBySource.get(sourceId).length) {
       append('assistant', 'Select a PDF source and ask your question.');
+    }
+  };
+
+  const refreshHistoryDropdown = async () => {
+    if (!historySel) return;
+    try {
+      const convs = await listConversations();
+      const activeIds = new Set(sources.map(s => s.id));
+      const items = convs.filter(c => activeIds.has(c.source_id));
+      const placeholderOpt = '<option value="">— start a new chat —</option>';
+      if (!items.length) {
+        historySel.innerHTML = placeholderOpt;
+        return;
+      }
+      historySel.innerHTML = placeholderOpt + items.map(c => {
+        const time = new Date(c.last_at).toLocaleDateString();
+        const snippet = (c.first_user_message || '').slice(0, 50).replace(/\s+/g, ' ');
+        const label = `${c.pdf_name || c.source_id} · ${time} · ${c.count} msgs · ${snippet}`;
+        return `<option value="${escapeHtml(c.source_id)}">${escapeHtml(label)}</option>`;
+      }).join('');
+    } catch {
+      historySel.innerHTML = '<option value="">— history unavailable —</option>';
     }
   };
 
@@ -533,12 +564,20 @@ function openAssistantChat(materials, mocks, subjects) {
     historyBySource.set(sourceId, []);
     renderHistory(sourceId);
     append('assistant', 'History cleared.');
+    refreshHistoryDropdown();
   });
   srcSel?.addEventListener('change', () => loadAndRenderHistory(srcSel.value));
+  historySel?.addEventListener('change', () => {
+    const target = historySel.value;
+    if (!target) return;
+    if (srcSel.value !== target) srcSel.value = target;
+    loadAndRenderHistory(target);
+  });
   input?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); askNow(); } });
 
   if (sources.length) {
     loadAndRenderHistory(srcSel.value);
+    refreshHistoryDropdown();
   } else {
     append('assistant', 'No PDF found. Upload PDFs in Materials or Mocks first.');
   }
