@@ -39,6 +39,7 @@ export const State = {
   getReviews()      { return _state.weeklyReviews   || []; },
   getAchievements() { return _state.achievements    || {}; },
   getTodos()        { return _state.todos           || []; },
+  getMaterials()    { return _state.materials       || []; },
 
   getSubject(id) { return this.getSubjects().find(s => s.id === id); },
 
@@ -96,6 +97,19 @@ export const State = {
   removeTodo(id) {
     this.set({ todos: this.getTodos().filter(t => t.id !== id) });
     Sync.deleteTodo(id, _userId);
+  },
+
+  addMaterial(item) {
+    this.set({ materials: [...this.getMaterials(), item] });
+    Sync.pushProfileState(_state, _userId);
+  },
+  updateMaterial(id, patch) {
+    this.set({ materials: this.getMaterials().map(m => m.id === id ? { ...m, ...patch } : m) });
+    Sync.pushProfileState(_state, _userId);
+  },
+  removeMaterial(id) {
+    this.set({ materials: this.getMaterials().filter(m => m.id !== id) });
+    Sync.pushProfileState(_state, _userId);
   },
 
   addSubject(subj) {

@@ -86,6 +86,18 @@ function renderAll(container, subjects) {
       if (mock) openDetailModal(mock, subjects, () => renderAll(container, subjects));
     });
   });
+  layout.querySelectorAll('[data-mock-pdf]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const mock = allMocks.find(m => m.id === btn.dataset.mockPdf);
+      if (!mock?.pdfAttachment?.dataUrl) return;
+      Modal.open({
+        title: mock.pdfAttachment.name || 'PDF',
+        size: 'lg',
+        body: `<iframe src="${mock.pdfAttachment.dataUrl}" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:10px"></iframe>`
+      });
+    });
+  });
   layout.querySelectorAll('[data-add-mock]').forEach(btn => {
     btn.addEventListener('click', () => openAddModal(subjects, () => renderAll(container, subjects), btn.dataset.addMock));
   });
@@ -101,7 +113,10 @@ function buildMockItem(mock, i, subject) {
       <div class="mock-date">${formatDateShort(mock.date)}</div>
       ${mock.note ? `<div class="mock-note">${mock.note}</div>` : ''}
     </div>
-    <div class="mock-score-big">${mock.score}<span style="font-size:11px;color:var(--text-tertiary)">/${mock.maxScore}</span></div>
+    <div class="mock-score-big">
+      ${mock.score}<span style="font-size:11px;color:var(--text-tertiary)">/${mock.maxScore}</span>
+      <button class="btn btn-ghost btn-sm" type="button" data-mock-pdf="${mock.id}" style="margin-top:6px" ${mock.pdfAttachment?.dataUrl ? '' : 'disabled'}>PDF</button>
+    </div>
   </div>`;
 }
 

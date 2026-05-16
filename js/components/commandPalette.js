@@ -13,6 +13,7 @@ function getViewActions() {
     { id:'statistics',  label:t('Statistik'),             icon:'line-chart',       action: ()=>Router.navigate('statistics') },
     { id:'errors',      label:t('Fehlerbuch'),            icon:'book-open',        action: ()=>Router.navigate('errors') },
     { id:'mocks',       label:t('Probeklausuren'),        icon:'file-check-2',     action: ()=>Router.navigate('mocks') },
+    { id:'materials',   label:t('materials'),             icon:'folder-open',      action: ()=>Router.navigate('materials') },
     { id:'settings',    label:t('Einstellungen'),         icon:'settings',         action: ()=>Router.navigate('settings') },
   ];
 }

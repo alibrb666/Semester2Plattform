@@ -1278,12 +1278,23 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
 }
 .hero-date { font-size: 14px; color: var(--text-secondary); }
 .hero-clock {
-  display: inline-block;
-  animation: clockPulse 1.6s ease-in-out infinite;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: clamp(22px, 4.2vw, 44px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+  padding: 8px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent 62%);
+  box-shadow: 0 0 0 rgba(139,92,246,0.35);
+  animation: clockPulse 1.2s ease-in-out infinite;
 }
 @keyframes clockPulse {
-  0%, 100% { opacity: 1; transform: translateY(0); }
-  50% { opacity: .72; transform: translateY(-1px); }
+  0%, 100% { opacity: 1; transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(139,92,246,0.0); }
+  50% { opacity: .96; transform: translateY(-1px) scale(1.018); box-shadow: 0 10px 24px rgba(139,92,246,0.22); }
 }
 .hero-phase {
   display: inline-flex; align-items: center; gap: var(--sp-2);

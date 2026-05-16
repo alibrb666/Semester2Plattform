@@ -32,6 +32,7 @@ const DICT = {
     statistics: 'Statistik',
     errors: 'Fehlerbuch',
     mocks: 'Probeklausuren',
+    materials: 'Materialien',
     today: 'Heute',
     plan: 'Plan',
     stats: 'Stats',
@@ -71,6 +72,15 @@ const DICT = {
     addFirstMockHint: 'Trage deine ersten Ergebnisse ein, um deinen Fortschritt zu tracken.',
     earnedPoints: 'Erreichte Punkte',
     maxPoints: 'Maximalpunkte'
+    ,
+    materialsModuleSub: 'Aufgaben und Materialien pro Fach',
+    addEntry: 'Eintrag hinzufügen',
+    task: 'Aufgabe',
+    material: 'Material',
+    dueDateOptional: 'Fällig am (optional)',
+    pdfOptional: 'PDF (optional)',
+    noMaterialsYet: 'Noch keine Einträge',
+    noMaterialsHint: 'Füge Aufgaben oder Materialien pro Fach hinzu.'
   },
   en: {
     appName: 'Learning Platform',
@@ -103,6 +113,7 @@ const DICT = {
     statistics: 'Statistics',
     errors: 'Error log',
     mocks: 'Mock exams',
+    materials: 'Materials',
     today: 'Today',
     plan: 'Plan',
     stats: 'Stats',
@@ -142,6 +153,15 @@ const DICT = {
     addFirstMockHint: 'Add your first results to track your progress.',
     earnedPoints: 'Points earned',
     maxPoints: 'Maximum points'
+    ,
+    materialsModuleSub: 'Tasks and materials per subject',
+    addEntry: 'Add entry',
+    task: 'Task',
+    material: 'Material',
+    dueDateOptional: 'Due on (optional)',
+    pdfOptional: 'PDF (optional)',
+    noMaterialsYet: 'No entries yet',
+    noMaterialsHint: 'Add tasks or materials per subject.'
   },
   fr: {
     appName: 'Plateforme d’apprentissage',
@@ -174,6 +194,7 @@ const DICT = {
     statistics: 'Statistiques',
     errors: 'Journal des erreurs',
     mocks: 'Examens blancs',
+    materials: 'Matériels',
     today: 'Aujourd’hui',
     plan: 'Plan',
     stats: 'Stats',
@@ -213,6 +234,15 @@ const DICT = {
     addFirstMockHint: 'Ajoute tes premiers résultats pour suivre ta progression.',
     earnedPoints: 'Points obtenus',
     maxPoints: 'Points maximum'
+    ,
+    materialsModuleSub: 'Tâches et supports par matière',
+    addEntry: 'Ajouter une entrée',
+    task: 'Tâche',
+    material: 'Matériel',
+    dueDateOptional: 'Échéance (optionnel)',
+    pdfOptional: 'PDF (optionnel)',
+    noMaterialsYet: 'Aucune entrée',
+    noMaterialsHint: 'Ajoute des tâches ou des supports par matière.'
   }
 };
 
