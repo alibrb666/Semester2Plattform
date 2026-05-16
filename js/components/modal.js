@@ -1,4 +1,5 @@
 import { renderIcons } from '../util.js';
+import { translateDom } from '../i18n.js';
 
 const root = () => document.getElementById('modal-root');
 let _stack = [];
@@ -40,10 +41,11 @@ export const Modal = {
       </div>
     `;
 
-    backdrop.addEventListener('click', e => { if (e.target === backdrop) closeTop(); });
-    backdrop.querySelector('.modal-close-btn').addEventListener('click', () => closeTop());
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) close(id); });
+    backdrop.querySelector('.modal-close-btn').addEventListener('click', () => close(id));
 
     root().appendChild(backdrop);
+    translateDom(backdrop);
     renderIcons(backdrop);
     _stack.push({ id, backdrop, onClose });
 
@@ -53,7 +55,11 @@ export const Modal = {
     return {
       el: backdrop,
       close: () => close(id),
-      update(newBody) { backdrop.querySelector('.modal-body').innerHTML = newBody; renderIcons(backdrop); }
+      update(newBody) {
+        backdrop.querySelector('.modal-body').innerHTML = newBody;
+        translateDom(backdrop);
+        renderIcons(backdrop);
+      }
     };
   },
 

@@ -14,6 +14,11 @@ function key(base) {
 
 export function setUserId(userId) {
   _userId = userId || null;
+  try {
+    // Hard-stop old shared keys from leaking calendar data between profiles.
+    localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(OVERRIDE_KEY);
+  } catch (_) {}
 }
 
 const HEURISTICS = [
@@ -25,7 +30,7 @@ const HEURISTICS = [
 
 export function loadCache() {
   try {
-    const raw = localStorage.getItem(key(CACHE_KEY)) || (_userId ? localStorage.getItem(CACHE_KEY) : null);
+    const raw = localStorage.getItem(key(CACHE_KEY));
     if (!raw) return { events: [], lastSyncedAt: null };
     return JSON.parse(raw);
   } catch {
@@ -43,7 +48,7 @@ export function saveCache(events, lastSyncedAt) {
 
 export function loadOverrides() {
   try {
-    const raw = localStorage.getItem(key(OVERRIDE_KEY)) || (_userId ? localStorage.getItem(OVERRIDE_KEY) : null);
+    const raw = localStorage.getItem(key(OVERRIDE_KEY));
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};

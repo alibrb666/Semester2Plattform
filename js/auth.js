@@ -52,15 +52,53 @@ function upsertLocalProfile(profile) {
   return next;
 }
 
+function readLocalStateNameById(userId) {
+  if (!userId) return null;
+  try {
+    const raw = localStorage.getItem(`learn.v1:${userId}`);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    const name = String(data?.settings?.name || '').trim();
+    return name || null;
+  } catch {
+    return null;
+  }
+}
+
+function recoverProfilesFromLocalStates(existing = []) {
+  const profiles = [...existing];
+  const ids = new Set(profiles.map(p => p.id));
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith('learn.v1:')) continue;
+      const id = k.slice('learn.v1:'.length);
+      if (!id || ids.has(id)) continue;
+      const name = readLocalStateNameById(id);
+      if (!name) continue;
+      profiles.push({
+        id,
+        name,
+        pinHash: null,
+        language: 'de',
+        lastUsedAt: null
+      });
+      ids.add(id);
+    }
+  } catch (_) {}
+  return profiles;
+}
+
 export const Auth = {
   listProfiles() {
-    const profiles = readProfiles();
+    let profiles = readProfiles();
+    profiles = recoverProfilesFromLocalStates(profiles);
     const savedId = localStorage.getItem(USER_KEY);
     const savedName = localStorage.getItem(USERNAME_KEY);
     if (savedId && savedName && !profiles.some(p => p.id === savedId)) {
       profiles.push({ id: savedId, name: savedName, pinHash: null, language: localStorage.getItem('learn.language') || 'de', lastUsedAt: new Date().toISOString() });
-      writeProfiles(profiles);
     }
+    writeProfiles(profiles);
     return profiles.sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
   },
 
