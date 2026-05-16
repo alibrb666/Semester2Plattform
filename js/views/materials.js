@@ -293,16 +293,38 @@ function openAssistantChat(materials, mocks, subjects) {
     log.scrollTop = log.scrollHeight;
   };
 
+  const stripItem = (m) => ({
+    id: m?.id,
+    subjectId: m?.subjectId,
+    subjectName: m?.subjectName,
+    kind: m?.kind,
+    title: m?.title,
+    note: m?.note,
+    score: m?.score,
+    maxScore: m?.maxScore,
+    pdfAttachment: m?.pdfAttachment ? { name: m.pdfAttachment.name } : undefined
+  });
+
   const withSelected = () => {
     const selected = sources.find(s => s.id === srcSel.value);
     if (!selected) return { materials: [], mocks: [], sourceName: 'PDF' };
+    const slim = stripItem(selected.item);
     const payload = selected.type === 'material'
-      ? { materials: [selected.item], mocks: [] }
-      : { materials: [], mocks: [selected.item] };
+      ? { materials: [slim], mocks: [] }
+      : { materials: [], mocks: [slim] };
     return { ...payload, sourceName: selected.fileName };
   };
 
-  const selectedModel = () => modelSel?.value || 'llama3.1:8b';
+  const selectedModel = () => modelSel?.value || 'qwen/qwen3.6-flash';
+
+  const parseAiResponse = async (res) => {
+    const raw = await res.text();
+    try {
+      return { data: JSON.parse(raw), raw };
+    } catch {
+      return { data: null, raw };
+    }
+  };
 
   const askNow = async () => {
     const q = input.value.trim();
@@ -322,8 +344,13 @@ function openAssistantChat(materials, mocks, subjects) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: q, materials: selected.materials, mocks: selected.mocks, model: selectedModel() })
       });
-      const data = await res.json();
-      placeholder.textContent = res.ok && data?.ok ? data.text : formatAiError(data?.error, 'ask');
+      const { data, raw } = await parseAiResponse(res);
+      if (res.ok && data?.ok) {
+        placeholder.textContent = data.text;
+      } else {
+        const errMsg = data?.error || (raw ? `HTTP ${res.status}: ${raw.slice(0, 200)}` : `HTTP ${res.status}`);
+        placeholder.textContent = formatAiError(errMsg, 'ask');
+      }
     } catch (e) {
       placeholder.textContent = formatAiError(String(e?.message || e), 'ask');
     }
@@ -345,8 +372,13 @@ function openAssistantChat(materials, mocks, subjects) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subjectName, difficulty: 'medium', materials: selected.materials, mocks: selected.mocks, model: selectedModel() })
       });
-      const data = await res.json();
-      placeholder.textContent = res.ok && data?.ok ? data.text : formatAiError(data?.error, 'mock');
+      const { data, raw } = await parseAiResponse(res);
+      if (res.ok && data?.ok) {
+        placeholder.textContent = data.text;
+      } else {
+        const errMsg = data?.error || (raw ? `HTTP ${res.status}: ${raw.slice(0, 200)}` : `HTTP ${res.status}`);
+        placeholder.textContent = formatAiError(errMsg, 'mock');
+      }
     } catch (e) {
       placeholder.textContent = formatAiError(String(e?.message || e), 'mock');
     }
@@ -361,14 +393,7 @@ function openAssistantChat(materials, mocks, subjects) {
     ? 'Select a PDF source and ask your question.'
     : 'No PDF found. Upload PDFs in Materials or Mocks first.');
 
-  const fallbackModels = [
-    'qwen/qwen3.6-flash',
-    'meta-llama/llama-3.1-8b-instruct',
-    'qwen/qwen3.6-plus',
-    'mistralai/mistral-medium-3.5',
-    'deepseek/deepseek-v3.2',
-    'microsoft/phi-4-mini-instruct'
-  ];
+  const fallbackModels = ['qwen/qwen3.6-flash'];
   fetch('/api/ai/models')
     .then(r => r.json())
     .then(data => {

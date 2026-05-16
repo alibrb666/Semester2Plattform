@@ -27,12 +27,20 @@ function buildSourceContext(materials = [], mocks = []) {
   return lines.join('\n');
 }
 
+const VALID_OPENROUTER_PATTERN = /^[a-z0-9_-]+\/[a-z0-9_.:@-]+$/i;
+const FALLBACK_MODEL = 'qwen/qwen3.6-flash';
+
+function normalizeModel(model) {
+  const m = model || process.env.OPENROUTER_MODEL || FALLBACK_MODEL;
+  return VALID_OPENROUTER_PATTERN.test(m) ? m : FALLBACK_MODEL;
+}
+
 async function callOpenRouter({ model, system, prompt, materials, mocks, maxTokens }) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY missing on server');
 
   const body = {
-    model: model || process.env.OPENROUTER_MODEL || 'qwen/qwen3.6-flash',
+    model: normalizeModel(model),
     messages: [
       { role: 'system', content: system },
       {
