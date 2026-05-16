@@ -11,13 +11,15 @@ module.exports = async (req, res) => {
     const mocks = Array.isArray(body?.mocks) ? body.mocks : [];
     const model = body?.model ? String(body.model) : undefined;
     const provider = body?.provider ? String(body.provider) : undefined;
+    const history = Array.isArray(body?.history) ? body.history : [];
 
     const text = await callModel({
       model,
       provider,
       materials,
       mocks,
-      maxTokens: 900,
+      history,
+      maxTokens: 1500,
       system: [
         'You are a study tutor.',
         'Prefer evidence from the provided source content. If the source covers the question, answer strictly from it.',

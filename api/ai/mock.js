@@ -8,6 +8,7 @@ module.exports = async (req, res) => {
     const mocks = Array.isArray(body?.mocks) ? body.mocks : [];
     const model = body?.model ? String(body.model) : undefined;
     const provider = body?.provider ? String(body.provider) : undefined;
+    const history = Array.isArray(body?.history) ? body.history : [];
     const subject = body?.subjectName || 'selected subject';
     const difficulty = body?.difficulty || 'medium';
 
@@ -23,7 +24,8 @@ module.exports = async (req, res) => {
       provider,
       materials,
       mocks,
-      maxTokens: 1800,
+      history,
+      maxTokens: 5000,
       system: [
         'You are an exam generator.',
         'Prefer using the provided source context when generating questions.',

@@ -3,6 +3,7 @@ import { uuid, formatDateShort, renderIcons } from '../util.js';
 import { Modal } from '../components/modal.js';
 import { Toast } from '../components/toast.js';
 import { t, translateDom } from '../i18n.js';
+import { loadHistory, appendMessage, clearHistory } from '../chatHistory.js';
 
 export function renderMaterials(container) {
   const subjects = State.getSubjects();
@@ -266,7 +267,8 @@ function openAssistantChat(materials, mocks, subjects) {
         <button class="btn btn-primary btn-sm" id="ai-chat-mock">Generate Mock</button>
       </div>
     `,
-    footer: `<button class="btn btn-ghost btn-sm" id="ai-chat-close">${t('Schließen')}</button>`
+    footer: `<button class="btn btn-ghost btn-sm" id="ai-chat-clear">Clear history</button>
+             <button class="btn btn-ghost btn-sm" id="ai-chat-close">${t('Schließen')}</button>`
   });
 
   const log = modal.el.querySelector('#ai-chat-log');
@@ -291,6 +293,45 @@ function openAssistantChat(materials, mocks, subjects) {
     el.textContent = txt;
     log.appendChild(el);
     log.scrollTop = log.scrollHeight;
+    return el;
+  };
+
+  const HISTORY_TURNS = 6;
+  const historyBySource = new Map();
+
+  const renderHistory = (sourceId) => {
+    log.innerHTML = '';
+    const msgs = historyBySource.get(sourceId) || [];
+    msgs.forEach(m => append(m.role, m.content));
+  };
+
+  const recordMessage = (sourceId, role, content, pdfName) => {
+    if (!sourceId) return;
+    if (!historyBySource.has(sourceId)) historyBySource.set(sourceId, []);
+    historyBySource.get(sourceId).push({ role, content });
+    appendMessage(sourceId, role, content, pdfName).catch(() => {});
+  };
+
+  const historyForRequest = (sourceId) => {
+    const msgs = historyBySource.get(sourceId) || [];
+    return msgs.slice(-HISTORY_TURNS * 2);
+  };
+
+  const loadAndRenderHistory = async (sourceId) => {
+    if (!sourceId) return;
+    if (historyBySource.has(sourceId)) {
+      renderHistory(sourceId);
+      return;
+    }
+    historyBySource.set(sourceId, []);
+    try {
+      const rows = await loadHistory(sourceId);
+      historyBySource.set(sourceId, rows.map(r => ({ role: r.role, content: r.content })));
+    } catch {}
+    renderHistory(sourceId);
+    if (!historyBySource.get(sourceId).length) {
+      append('assistant', 'Select a PDF source and ask your question.');
+    }
   };
 
   const PDF_TEXT_LIMIT = 40000;
@@ -403,10 +444,10 @@ function openAssistantChat(materials, mocks, subjects) {
   const askNow = async () => {
     const q = input.value.trim();
     if (!q) return;
+    const sourceId = srcSel.value;
     append('user', q);
     input.value = '';
-    append('assistant', `Reading PDF...`);
-    const placeholder = log.lastElementChild;
+    const placeholder = append('assistant', 'Reading PDF...');
     const selected = await withSelected();
     if (!selected.materials.length && !selected.mocks.length) {
       placeholder.textContent = 'Please select a PDF source first.';
@@ -416,22 +457,35 @@ function openAssistantChat(materials, mocks, subjects) {
       placeholder.textContent = `Cannot answer: ${selected.error}`;
       return;
     }
+    recordMessage(sourceId, 'user', q, selected.sourceName);
     placeholder.textContent = `Using source: ${selected.sourceName} (${selected.pdfChars} chars)\n...`;
     try {
       const result = await callAi('/api/ai/ask',
-        { question: q, materials: selected.materials, mocks: selected.mocks, model: selectedModel(), provider: selectedProvider() },
+        {
+          question: q,
+          materials: selected.materials,
+          mocks: selected.mocks,
+          model: selectedModel(),
+          provider: selectedProvider(),
+          history: historyForRequest(sourceId).slice(0, -1)
+        },
         attempt => { if (attempt > 1) placeholder.textContent = `Retrying (provider was busy)...`; }
       );
-      placeholder.textContent = result.ok ? result.text : formatAiError(result.error, 'ask');
+      if (result.ok) {
+        placeholder.textContent = result.text;
+        recordMessage(sourceId, 'assistant', result.text, selected.sourceName);
+      } else {
+        placeholder.textContent = formatAiError(result.error, 'ask');
+      }
     } catch (e) {
       placeholder.textContent = formatAiError(String(e?.message || e), 'ask');
     }
   };
 
   const mockNow = async () => {
+    const sourceId = srcSel.value;
     append('user', `Generate mock from selected PDF`);
-    append('assistant', 'Reading PDF...');
-    const placeholder = log.lastElementChild;
+    const placeholder = append('assistant', 'Reading PDF...');
     const selected = await withSelected();
     if (!selected.materials.length && !selected.mocks.length) {
       placeholder.textContent = 'Please select a PDF source first.';
@@ -442,13 +496,27 @@ function openAssistantChat(materials, mocks, subjects) {
       return;
     }
     const subjectName = subjects.find(s => s.id === (selected.materials[0]?.subjectId || selected.mocks[0]?.subjectId))?.name || 'Subject';
+    recordMessage(sourceId, 'user', `Generate mock from selected PDF`, selected.sourceName);
     placeholder.textContent = `Generating from ${selected.sourceName} (${selected.pdfChars} chars)...`;
     try {
       const result = await callAi('/api/ai/mock',
-        { subjectName, difficulty: 'medium', materials: selected.materials, mocks: selected.mocks, model: selectedModel(), provider: selectedProvider() },
+        {
+          subjectName,
+          difficulty: 'medium',
+          materials: selected.materials,
+          mocks: selected.mocks,
+          model: selectedModel(),
+          provider: selectedProvider(),
+          history: historyForRequest(sourceId).slice(0, -1)
+        },
         attempt => { if (attempt > 1) placeholder.textContent = `Retrying (provider was busy)...`; }
       );
-      placeholder.textContent = result.ok ? result.text : formatAiError(result.error, 'mock');
+      if (result.ok) {
+        placeholder.textContent = result.text;
+        recordMessage(sourceId, 'assistant', result.text, selected.sourceName);
+      } else {
+        placeholder.textContent = formatAiError(result.error, 'mock');
+      }
     } catch (e) {
       placeholder.textContent = formatAiError(String(e?.message || e), 'mock');
     }
@@ -457,11 +525,23 @@ function openAssistantChat(materials, mocks, subjects) {
   modal.el.querySelector('#ai-chat-ask')?.addEventListener('click', askNow);
   modal.el.querySelector('#ai-chat-mock')?.addEventListener('click', mockNow);
   modal.el.querySelector('#ai-chat-close')?.addEventListener('click', () => modal.close());
+  modal.el.querySelector('#ai-chat-clear')?.addEventListener('click', async () => {
+    const sourceId = srcSel.value;
+    if (!sourceId) return;
+    if (!confirm('Chat history for this PDF will be deleted. Continue?')) return;
+    await clearHistory(sourceId).catch(() => {});
+    historyBySource.set(sourceId, []);
+    renderHistory(sourceId);
+    append('assistant', 'History cleared.');
+  });
+  srcSel?.addEventListener('change', () => loadAndRenderHistory(srcSel.value));
   input?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); askNow(); } });
 
-  append('assistant', sources.length
-    ? 'Select a PDF source and ask your question.'
-    : 'No PDF found. Upload PDFs in Materials or Mocks first.');
+  if (sources.length) {
+    loadAndRenderHistory(srcSel.value);
+  } else {
+    append('assistant', 'No PDF found. Upload PDFs in Materials or Mocks first.');
+  }
 
   const providerByModel = new Map([['gemini-2.5-flash', 'gemini']]);
 

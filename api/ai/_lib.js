@@ -43,19 +43,31 @@ function normalizeModel(model) {
   return VALID_OPENROUTER_PATTERN.test(m) ? m : FALLBACK_MODEL;
 }
 
-async function callOpenRouter({ model, system, prompt, materials, mocks, maxTokens }) {
+function sanitizeHistory(history, maxTurns = 6) {
+  if (!Array.isArray(history)) return [];
+  return history
+    .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+    .slice(-maxTurns * 2)
+    .map(m => ({ role: m.role, content: String(m.content).slice(0, 8000) }));
+}
+
+async function callOpenRouter({ model, system, prompt, materials, mocks, maxTokens, history }) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY missing on server');
 
+  const sourceMsg = `SOURCE SUMMARY:\n${buildSourceContext(materials, mocks) || 'No metadata available.'}`;
+  const trimmedHistory = sanitizeHistory(history);
+  const messages = [
+    { role: 'system', content: system },
+    { role: 'user', content: sourceMsg },
+    { role: 'assistant', content: 'Acknowledged. I will use the source above for follow-up questions.' },
+    ...trimmedHistory,
+    { role: 'user', content: `TASK:\n${prompt}` }
+  ];
+
   const body = {
     model: normalizeModel(model),
-    messages: [
-      { role: 'system', content: system },
-      {
-        role: 'user',
-        content: `SOURCE SUMMARY:\n${buildSourceContext(materials, mocks) || 'No metadata available.'}\n\nTASK:\n${prompt}`
-      }
-    ],
+    messages,
     max_completion_tokens: maxTokens || 1200,
     temperature: 0.3
   };
@@ -75,15 +87,25 @@ async function callOpenRouter({ model, system, prompt, materials, mocks, maxToke
   return data?.choices?.[0]?.message?.content || 'No output.';
 }
 
-async function callGemini({ model, system, prompt, materials, mocks, maxTokens }) {
+async function callGemini({ model, system, prompt, materials, mocks, maxTokens, history }) {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY missing on server');
   const m = model || 'gemini-2.5-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${apiKey}`;
-  const userText = `SOURCE SUMMARY:\n${buildSourceContext(materials, mocks) || 'No metadata available.'}\n\nTASK:\n${prompt}`;
+  const sourceText = `SOURCE SUMMARY:\n${buildSourceContext(materials, mocks) || 'No metadata available.'}`;
+  const trimmedHistory = sanitizeHistory(history);
+  const contents = [
+    { role: 'user', parts: [{ text: sourceText }] },
+    { role: 'model', parts: [{ text: 'Acknowledged. I will use the source above for follow-up questions.' }] },
+    ...trimmedHistory.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }]
+    })),
+    { role: 'user', parts: [{ text: `TASK:\n${prompt}` }] }
+  ];
   const body = {
     systemInstruction: { parts: [{ text: system }] },
-    contents: [{ role: 'user', parts: [{ text: userText }] }],
+    contents,
     generationConfig: { temperature: 0.3, maxOutputTokens: maxTokens || 1200 }
   };
   const resp = await fetch(url, {
