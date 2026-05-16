@@ -323,9 +323,9 @@ function openAssistantChat(materials, mocks, subjects) {
         body: JSON.stringify({ question: q, materials: selected.materials, mocks: selected.mocks, model: selectedModel() })
       });
       const data = await res.json();
-      placeholder.textContent = res.ok && data?.ok ? data.text : (data?.error || 'Unknown error');
+      placeholder.textContent = res.ok && data?.ok ? data.text : formatAiError(data?.error, 'ask');
     } catch (e) {
-      placeholder.textContent = `Request failed: ${String(e?.message || e)}\nTip: check API env keys on server and selected model availability.`;
+      placeholder.textContent = formatAiError(String(e?.message || e), 'ask');
     }
   };
 
@@ -346,9 +346,9 @@ function openAssistantChat(materials, mocks, subjects) {
         body: JSON.stringify({ subjectName, difficulty: 'medium', materials: selected.materials, mocks: selected.mocks, model: selectedModel() })
       });
       const data = await res.json();
-      placeholder.textContent = res.ok && data?.ok ? data.text : (data?.error || 'Unknown error');
+      placeholder.textContent = res.ok && data?.ok ? data.text : formatAiError(data?.error, 'mock');
     } catch (e) {
-      placeholder.textContent = `Request failed: ${String(e?.message || e)}\nTip: check API env keys on server and selected model availability.`;
+      placeholder.textContent = formatAiError(String(e?.message || e), 'mock');
     }
   };
 
@@ -420,4 +420,25 @@ function collectPdfSources(materials, mocks, subjects) {
     });
   });
   return out;
+}
+
+function formatAiError(message, mode) {
+  const text = String(message || 'Unknown error');
+  const base = mode === 'mock' ? 'Mock generation failed' : 'AI answer failed';
+  if (/OPENROUTER_API_KEY missing on server/i.test(text)) {
+    return `${base}: Vercel is missing OPENROUTER_API_KEY.`;
+  }
+  if (/OPENAI_API_KEY missing on server/i.test(text)) {
+    return `${base}: Vercel is missing OPENAI_API_KEY.`;
+  }
+  if (/not a valid model ID/i.test(text)) {
+    return `${base}: the selected model ID is not valid for the current provider.`;
+  }
+  if (/requires more credits/i.test(text) || /credit/i.test(text)) {
+    return `${base}: the OpenRouter account has insufficient credits or the token limit is too high.`;
+  }
+  if (/fetch/i.test(text) || /network/i.test(text)) {
+    return `${base}: network error while contacting the AI endpoint.`;
+  }
+  return `${base}: ${text}`;
 }
