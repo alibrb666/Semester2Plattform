@@ -308,6 +308,10 @@ function openAssistantChat(materials, mocks, subjects) {
     const q = input.value.trim();
     if (!q) return;
     const selected = withSelected();
+    if (!selected.materials.length && !selected.mocks.length) {
+      append('assistant', 'Please select a PDF source first.');
+      return;
+    }
     append('user', q);
     input.value = '';
     append('assistant', `Using source: ${selected.sourceName}\n...`);
@@ -321,12 +325,16 @@ function openAssistantChat(materials, mocks, subjects) {
       const data = await res.json();
       placeholder.textContent = res.ok && data?.ok ? data.text : (data?.error || 'Unknown error');
     } catch (e) {
-      placeholder.textContent = String(e?.message || e);
+      placeholder.textContent = `Request failed: ${String(e?.message || e)}\nTip: make sure Ollama is running and the selected model is installed.`;
     }
   };
 
   const mockNow = async () => {
     const selected = withSelected();
+    if (!selected.materials.length && !selected.mocks.length) {
+      append('assistant', 'Please select a PDF source first.');
+      return;
+    }
     const subjectName = subjects.find(s => s.id === (selected.materials[0]?.subjectId || selected.mocks[0]?.subjectId))?.name || 'Subject';
     append('user', `Generate mock from: ${selected.sourceName}`);
     append('assistant', 'Generating...');
@@ -340,7 +348,7 @@ function openAssistantChat(materials, mocks, subjects) {
       const data = await res.json();
       placeholder.textContent = res.ok && data?.ok ? data.text : (data?.error || 'Unknown error');
     } catch (e) {
-      placeholder.textContent = String(e?.message || e);
+      placeholder.textContent = `Request failed: ${String(e?.message || e)}\nTip: make sure Ollama is running and the selected model is installed.`;
     }
   };
 
@@ -353,10 +361,15 @@ function openAssistantChat(materials, mocks, subjects) {
     ? 'Select a PDF source and ask your question.'
     : 'No PDF found. Upload PDFs in Materials or Mocks first.');
 
+  const fallbackModels = ['llama3.1:8b', 'qwen2.5:14b', 'mistral-nemo:12b', 'deepseek-r1:8b', 'phi4:14b'];
   fetch('/api/ai/models')
     .then(r => r.json())
     .then(data => {
-      if (!data?.ok || !modelSel) return;
+      if (!modelSel) return;
+      if (!data?.ok) {
+        modelSel.innerHTML = fallbackModels.map(m => `<option value="${m}">${m}</option>`).join('');
+        return;
+      }
       const all = [...(data.installed || []), ...(data.helpful || [])];
       const seen = new Set();
       modelSel.innerHTML = all
@@ -368,7 +381,10 @@ function openAssistantChat(materials, mocks, subjects) {
         .map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.id)}${m.installed ? ' (installed)' : ''}</option>`)
         .join('');
     })
-    .catch(() => {});
+    .catch(() => {
+      if (!modelSel) return;
+      modelSel.innerHTML = fallbackModels.map(m => `<option value="${m}">${m}</option>`).join('');
+    });
   translateDom(modal.el);
   renderIcons(modal.el);
 }

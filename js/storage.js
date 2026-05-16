@@ -74,6 +74,7 @@ export const Storage = {
       data.scheduleBlocks = data.scheduleBlocks || [];
       data.errorLog    = data.errorLog    || [];
       data.mocks       = data.mocks       || [];
+      data.materials   = data.materials   || [];
       data.weeklyReviews = data.weeklyReviews || [];
       data.achievements = data.achievements || { longestStreak:0, totalHours:0 };
     }
@@ -133,6 +134,7 @@ export const Storage = {
         eventCount: 0
       };
     }
+    if (!Array.isArray(data.materials)) data.materials = [];
     data.settings = { language: 'de', ...(data.settings || {}) };
     return data;
   }

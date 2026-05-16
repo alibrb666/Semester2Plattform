@@ -248,10 +248,16 @@ function splitProfileSettings(raw = {}) {
 }
 
 function buildAppData(state) {
+  const mockPdfById = {};
+  (state.mocks || []).forEach(m => {
+    if (m?.id && m?.pdfAttachment?.dataUrl) mockPdfById[m.id] = m.pdfAttachment;
+  });
   return {
     schedulePrefs: state.schedulePrefs || null,
     scheduleBlocks: state.scheduleBlocks || [],
     achievements: state.achievements || {},
+    materials: state.materials || [],
+    mockPdfById,
     scheduleCache: scheduleSync.loadCache(),
     eventSubjectMap: scheduleSync.loadOverrides()
   };
@@ -329,6 +335,12 @@ export async function loadAllData(userId, defaultState) {
       ? { ...defaultState.settings, ...profileSettings, name: profile.name || profileSettings.name || defaultState.settings.name }
       : defaultState.settings;
 
+    const mockPdfById = appData.mockPdfById || {};
+    const mocks = (mocksRaw || []).map(rowToMock).map(m => ({
+      ...m,
+      pdfAttachment: mockPdfById[m.id] || null
+    }));
+
     return {
       ...defaultState,
       settings,
@@ -336,10 +348,11 @@ export async function loadAllData(userId, defaultState) {
       schedulePrefs: appData.schedulePrefs || defaultState.schedulePrefs,
       scheduleBlocks: appData.scheduleBlocks || defaultState.scheduleBlocks || [],
       achievements: appData.achievements || defaultState.achievements || {},
+      materials: appData.materials || defaultState.materials || [],
       sessions:      (sessionsRaw || []).map(rowToSession),
       todos:         (todosRaw    || []).map(rowToTodo),
       errorLog:      (errorsRaw   || []).map(rowToError),
-      mocks:         (mocksRaw    || []).map(rowToMock),
+      mocks,
       weeklyReviews: (reviewsRaw  || []).map(rowToReview)
     };
   } finally {
