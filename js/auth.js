@@ -105,6 +105,23 @@ function mergeProfiles(base = [], incoming = []) {
   return [...map.values()];
 }
 
+function dedupeProfilesByName(profiles = []) {
+  const byName = new Map();
+  const sorted = [...profiles].sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
+  sorted.forEach(p => {
+    const key = String(p?.name || '').trim().toLowerCase();
+    if (!key) return;
+    const prev = byName.get(key);
+    if (!prev) {
+      byName.set(key, p);
+      return;
+    }
+    const score = x => (x?.pinHash ? 2 : 0) + (x?.lastUsedAt ? 1 : 0);
+    if (score(p) > score(prev)) byName.set(key, p);
+  });
+  return [...byName.values()];
+}
+
 export const Auth = {
   listProfiles() {
     let profiles = readProfiles();
@@ -114,6 +131,7 @@ export const Auth = {
     if (savedId && savedName && !profiles.some(p => p.id === savedId)) {
       profiles.push({ id: savedId, name: savedName, pinHash: null, language: localStorage.getItem('learn.language') || 'de', lastUsedAt: new Date().toISOString() });
     }
+    profiles = dedupeProfilesByName(profiles);
     writeProfiles(profiles);
     return profiles.sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
   },
@@ -136,7 +154,7 @@ export const Auth = {
           language: p?.settings?.language || 'de',
           lastUsedAt: p.updated_at || null
         }));
-      const merged = mergeProfiles(local, cloud);
+      const merged = dedupeProfilesByName(mergeProfiles(local, cloud));
       writeProfiles(merged);
       return merged.sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
     } catch {

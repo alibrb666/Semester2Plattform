@@ -2575,6 +2575,7 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
   align-items: center;
   justify-content: center;
   padding: var(--sp-6);
+  overflow: auto;
 }
 #name-screen[hidden] { display: none; }
 
@@ -2588,6 +2589,7 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
 
 .profile-card {
   max-width: 520px;
+  max-height: calc(100dvh - 48px);
   background:
     radial-gradient(120% 100% at 0% 0%, rgba(139,92,246,0.18) 0%, rgba(139,92,246,0.03) 45%, transparent 70%),
     linear-gradient(180deg, var(--bg-surface), var(--bg-elevated));
@@ -2595,6 +2597,7 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
   border-radius: 18px;
   padding: 20px;
   box-shadow: var(--shadow-lg);
+  overflow: auto;
 }
 
 .profile-lang-row {
@@ -2614,6 +2617,9 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: var(--sp-3);
+  max-height: min(52dvh, 520px);
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .profile-tile {
