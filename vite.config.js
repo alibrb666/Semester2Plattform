@@ -141,8 +141,8 @@ function aiAssistantPlugin() {
 
   const callOllama = async ({ prompt, materials, mocks, mode, model }) => {
     const system = mode === 'mock'
-      ? 'You are an exam generator. Create a realistic mock exam with points, sections, answer key and grading rubric. Use only provided source content. If source is insufficient, say what is missing.'
-      : 'You are a study tutor. Answer only with evidence from provided source content. If uncertain, say so and ask for more source PDFs.';
+      ? 'You are an exam generator. Prefer using the provided source context when generating questions. If the source is insufficient, supplement with reasonable general-knowledge questions on the same subject and mark them with "Allgemein (nicht aus Quelle)" in their header. Reply in the language used in the user request.'
+      : 'You are a study tutor. Prefer evidence from the provided source content. If the source covers the question, answer strictly from it. If the source does NOT cover the topic, briefly note that the topic is not in the source, then provide a clear, concise general-knowledge explanation. Mark general-knowledge sections with a leading "Allgemein (nicht aus Quelle):" line so the reader knows the distinction. Reply in the language the user used in the question.';
     const textContext = buildSourceContext(materials, mocks);
 
     const resp = await fetch((process.env.OLLAMA_URL || 'http://127.0.0.1:11434') + '/api/chat', {
@@ -167,8 +167,8 @@ function aiAssistantPlugin() {
     const apiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_APIKEY;
     if (!apiKey) throw new Error('OPENAI_API_KEY is missing on server');
     const system = mode === 'mock'
-      ? 'You are an exam generator. Create a realistic mock exam with points, sections, answer key and grading rubric. Use only provided source content. If source is insufficient, say what is missing.'
-      : 'You are a study tutor. Answer only with evidence from provided source content. If uncertain, say so and ask for more source PDFs.';
+      ? 'You are an exam generator. Prefer using the provided source context when generating questions. If the source is insufficient, supplement with reasonable general-knowledge questions on the same subject and mark them with "Allgemein (nicht aus Quelle)" in their header. Reply in the language used in the user request.'
+      : 'You are a study tutor. Prefer evidence from the provided source content. If the source covers the question, answer strictly from it. If the source does NOT cover the topic, briefly note that the topic is not in the source, then provide a clear, concise general-knowledge explanation. Mark general-knowledge sections with a leading "Allgemein (nicht aus Quelle):" line so the reader knows the distinction. Reply in the language the user used in the question.';
     const textContext = buildSourceContext(materials, mocks);
     const fileInputs = toOpenAIInputs(materials, mocks);
     const input = [

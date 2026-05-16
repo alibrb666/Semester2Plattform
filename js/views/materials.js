@@ -447,7 +447,14 @@ function openAssistantChat(materials, mocks, subjects) {
     ? 'Select a PDF source and ask your question.'
     : 'No PDF found. Upload PDFs in Materials or Mocks first.');
 
-  const fallbackModels = [
+  const fallbackFree = [
+    'google/gemma-4-31b-it:free',
+    'google/gemma-4-26b-a4b-it:free',
+    'deepseek/deepseek-v4-flash:free',
+    'arcee-ai/trinity-large-thinking:free',
+    'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'
+  ];
+  const fallbackPaid = [
     'qwen/qwen3.6-flash',
     'qwen/qwen3.5-flash',
     'openai/gpt-5.4',
@@ -460,29 +467,31 @@ function openAssistantChat(materials, mocks, subjects) {
     'deepseek/deepseek-v4-pro',
     'deepseek/deepseek-v4-flash'
   ];
+  const renderGroups = (freeIds, paidIds) => {
+    if (!modelSel) return;
+    const opt = id => `<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`;
+    const freeGroup = freeIds.length
+      ? `<optgroup label="Free (no credits)">${freeIds.map(opt).join('')}</optgroup>`
+      : '';
+    const paidGroup = paidIds.length
+      ? `<optgroup label="Paid (requires credits)">${paidIds.map(opt).join('')}</optgroup>`
+      : '';
+    modelSel.innerHTML = freeGroup + paidGroup;
+  };
   fetch('/api/ai/models')
     .then(r => r.json())
     .then(data => {
-      if (!modelSel) return;
-      if (!data?.ok) {
-        modelSel.innerHTML = fallbackModels.map(m => `<option value="${m}">${m}</option>`).join('');
-        return;
+      if (!data?.ok) return renderGroups(fallbackFree, fallbackPaid);
+      const freeIds = (data.free || []).map(m => m.id).filter(Boolean);
+      const paidIds = (data.paid || []).map(m => m.id).filter(Boolean);
+      if (!freeIds.length && !paidIds.length && Array.isArray(data.helpful)) {
+        const splitFree = data.helpful.filter(m => m?.id?.endsWith(':free')).map(m => m.id);
+        const splitPaid = data.helpful.filter(m => m?.id && !m.id.endsWith(':free')).map(m => m.id);
+        return renderGroups(splitFree, splitPaid);
       }
-      const all = [...(data.installed || []), ...(data.helpful || [])];
-      const seen = new Set();
-      modelSel.innerHTML = all
-        .filter(m => {
-          if (!m?.id || seen.has(m.id)) return false;
-          seen.add(m.id);
-          return true;
-        })
-        .map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.id)}${m.installed ? ' (installed)' : ''}</option>`)
-        .join('');
+      renderGroups(freeIds, paidIds);
     })
-    .catch(() => {
-      if (!modelSel) return;
-      modelSel.innerHTML = fallbackModels.map(m => `<option value="${m}">${m}</option>`).join('');
-    });
+    .catch(() => renderGroups(fallbackFree, fallbackPaid));
   translateDom(modal.el);
   renderIcons(modal.el);
 }

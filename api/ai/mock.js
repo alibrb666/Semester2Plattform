@@ -22,7 +22,12 @@ module.exports = async (req, res) => {
       materials,
       mocks,
       maxTokens: 1800,
-      system: 'You are an exam generator. Use only provided source context. If source is insufficient, explicitly list missing content.',
+      system: [
+        'You are an exam generator.',
+        'Prefer using the provided source context when generating questions.',
+        'If the source is insufficient, supplement with reasonable general-knowledge questions on the same subject and mark them with "Allgemein (nicht aus Quelle)" in their header.',
+        'Reply in the language used in the user request.'
+      ].join(' '),
       prompt
     });
     return json(res, 200, { ok: true, text });
