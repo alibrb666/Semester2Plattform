@@ -24,12 +24,10 @@ export function renderMaterials(container) {
         <div class="section-header">
           <div class="section-title">LLM Assistant</div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center">
-          <input class="input" id="ai-question" type="text" placeholder="Ask a question about your PDFs…" />
-          <button class="btn btn-secondary btn-sm" id="btn-ai-ask">Ask PDF</button>
-          <button class="btn btn-primary btn-sm" id="btn-ai-mock">Generate Mock</button>
+        <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+          <div style="font-size:12px;color:var(--text-tertiary)">Choose one PDF in chat. The assistant will use only that file.</div>
+          <button class="btn btn-primary btn-sm" id="btn-ai-chat">Open Chatbot</button>
         </div>
-        <div style="font-size:12px;color:var(--text-tertiary);margin-top:8px">Uses uploaded PDFs from this account.</div>
       </div>
       <div id="materials-list"></div>
     </div>`;
@@ -62,15 +60,8 @@ export function renderMaterials(container) {
   }
 
   container.querySelector('#btn-add-material')?.addEventListener('click', () => openCreateModal(subjects, () => renderMaterials(container)));
-  container.querySelector('#btn-ai-ask')?.addEventListener('click', async () => {
-    const q = container.querySelector('#ai-question')?.value?.trim();
-    if (!q) return;
-    await runAssistantAsk({ question: q, items: State.getMaterials(), mocks });
-  });
-  container.querySelector('#btn-ai-mock')?.addEventListener('click', async () => {
-    const subject = subjects[0];
-    if (!subject) return;
-    await runAssistantMock({ subjectName: subject.name, items: State.getMaterials(), mocks });
+  container.querySelector('#btn-ai-chat')?.addEventListener('click', () => {
+    openAssistantChat(State.getMaterials(), mocks, subjects);
   });
   list.querySelectorAll('[data-material-id]').forEach(el => {
     el.addEventListener('click', e => {
@@ -248,4 +239,136 @@ async function runAssistantMock({ subjectName, items, mocks }) {
 
 function escapeHtml(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function openAssistantChat(materials, mocks, subjects) {
+  const sources = collectPdfSources(materials, mocks, subjects);
+  const modal = Modal.open({
+    title: 'LLM Chatbot',
+    size: 'lg',
+    body: `
+      <div class="field">
+        <label for="ai-source">PDF Source</label>
+        <select class="select" id="ai-source">
+          ${sources.map(s => `<option value="${s.id}">${escapeHtml(s.label)}</option>`).join('')}
+        </select>
+      </div>
+      <div id="ai-chat-log" style="height:44vh;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--bg-elevated);display:flex;flex-direction:column;gap:8px"></div>
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-top:10px">
+        <input class="input" id="ai-chat-input" type="text" placeholder="Ask something from the selected PDF..." />
+        <button class="btn btn-secondary btn-sm" id="ai-chat-ask">Ask</button>
+        <button class="btn btn-primary btn-sm" id="ai-chat-mock">Generate Mock</button>
+      </div>
+    `,
+    footer: `<button class="btn btn-ghost btn-sm" id="ai-chat-close">${t('Schließen')}</button>`
+  });
+
+  const log = modal.el.querySelector('#ai-chat-log');
+  const input = modal.el.querySelector('#ai-chat-input');
+  const srcSel = modal.el.querySelector('#ai-source');
+
+  const append = (role, txt) => {
+    const side = role === 'user' ? 'flex-end' : 'flex-start';
+    const bg = role === 'user' ? 'var(--accent)' : 'var(--bg-card)';
+    const color = role === 'user' ? '#fff' : 'var(--text-primary)';
+    const el = document.createElement('div');
+    el.style.maxWidth = '92%';
+    el.style.alignSelf = side;
+    el.style.background = bg;
+    el.style.color = color;
+    el.style.border = '1px solid var(--border-subtle)';
+    el.style.borderRadius = '10px';
+    el.style.padding = '8px 10px';
+    el.style.fontSize = '13px';
+    el.style.whiteSpace = 'pre-wrap';
+    el.textContent = txt;
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+  };
+
+  const withSelected = () => {
+    const selected = sources.find(s => s.id === srcSel.value);
+    if (!selected) return { materials: [], mocks: [], sourceName: 'PDF' };
+    const payload = selected.type === 'material'
+      ? { materials: [selected.item], mocks: [] }
+      : { materials: [], mocks: [selected.item] };
+    return { ...payload, sourceName: selected.fileName };
+  };
+
+  const askNow = async () => {
+    const q = input.value.trim();
+    if (!q) return;
+    const selected = withSelected();
+    append('user', q);
+    input.value = '';
+    append('assistant', `Using source: ${selected.sourceName}\n...`);
+    const placeholder = log.lastElementChild;
+    try {
+      const res = await fetch('/api/ai/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q, materials: selected.materials, mocks: selected.mocks })
+      });
+      const data = await res.json();
+      placeholder.textContent = res.ok && data?.ok ? data.text : (data?.error || 'Unknown error');
+    } catch (e) {
+      placeholder.textContent = String(e?.message || e);
+    }
+  };
+
+  const mockNow = async () => {
+    const selected = withSelected();
+    const subjectName = subjects.find(s => s.id === (selected.materials[0]?.subjectId || selected.mocks[0]?.subjectId))?.name || 'Subject';
+    append('user', `Generate mock from: ${selected.sourceName}`);
+    append('assistant', 'Generating...');
+    const placeholder = log.lastElementChild;
+    try {
+      const res = await fetch('/api/ai/mock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subjectName, difficulty: 'medium', materials: selected.materials, mocks: selected.mocks })
+      });
+      const data = await res.json();
+      placeholder.textContent = res.ok && data?.ok ? data.text : (data?.error || 'Unknown error');
+    } catch (e) {
+      placeholder.textContent = String(e?.message || e);
+    }
+  };
+
+  modal.el.querySelector('#ai-chat-ask')?.addEventListener('click', askNow);
+  modal.el.querySelector('#ai-chat-mock')?.addEventListener('click', mockNow);
+  modal.el.querySelector('#ai-chat-close')?.addEventListener('click', () => modal.close());
+  input?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); askNow(); } });
+
+  append('assistant', sources.length
+    ? 'Select a PDF source and ask your question.'
+    : 'No PDF found. Upload PDFs in Materials or Mocks first.');
+  translateDom(modal.el);
+  renderIcons(modal.el);
+}
+
+function collectPdfSources(materials, mocks, subjects) {
+  const sMap = new Map(subjects.map(s => [s.id, s.name]));
+  const out = [];
+  materials.forEach(m => {
+    if (!m?.pdfAttachment?.dataUrl) return;
+    out.push({
+      id: `mat:${m.id}`,
+      type: 'material',
+      item: m,
+      fileName: m.pdfAttachment.name || 'material.pdf',
+      label: `[Material] ${sMap.get(m.subjectId) || '-'} · ${m.title || '-'} · ${m.pdfAttachment.name || 'PDF'}`
+    });
+  });
+  mocks.forEach(m => {
+    if (!m?.pdfAttachment?.dataUrl) return;
+    out.push({
+      id: `mock:${m.id}`,
+      type: 'mock',
+      item: m,
+      fileName: m.pdfAttachment.name || 'mock.pdf',
+      label: `[Mock] ${sMap.get(m.subjectId) || '-'} · ${m.pdfAttachment.name || 'PDF'}`
+    });
+  });
+  return out;
 }
