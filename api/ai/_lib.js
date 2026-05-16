@@ -75,6 +75,29 @@ async function callOpenRouter({ model, system, prompt, materials, mocks, maxToke
   return data?.choices?.[0]?.message?.content || 'No output.';
 }
 
+async function callGemini({ model, system, prompt, materials, mocks, maxTokens }) {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY missing on server');
+  const m = model || 'gemini-2.5-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${apiKey}`;
+  const userText = `SOURCE SUMMARY:\n${buildSourceContext(materials, mocks) || 'No metadata available.'}\n\nTASK:\n${prompt}`;
+  const body = {
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [{ role: 'user', parts: [{ text: userText }] }],
+    generationConfig: { temperature: 0.3, maxOutputTokens: maxTokens || 1200 }
+  };
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data?.error?.message || `Gemini error ${resp.status}`);
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  const text = parts.map(p => p?.text || '').join('').trim();
+  return text || 'No output.';
+}
+
 async function callOpenAI({ model, system, prompt, materials, mocks, maxTokens }) {
   const apiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_APIKEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY missing on server');
@@ -103,8 +126,9 @@ async function callOpenAI({ model, system, prompt, materials, mocks, maxTokens }
 }
 
 async function callModel(args) {
-  const provider = (process.env.AI_PROVIDER || 'openrouter').toLowerCase();
+  const provider = String(args.provider || process.env.AI_PROVIDER || 'openrouter').toLowerCase();
   if (provider === 'openai') return callOpenAI(args);
+  if (provider === 'gemini' || provider === 'google') return callGemini(args);
   return callOpenRouter(args);
 }
 

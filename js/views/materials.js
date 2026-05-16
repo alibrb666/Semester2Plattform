@@ -256,7 +256,7 @@ function openAssistantChat(materials, mocks, subjects) {
       <div class="field">
         <label for="ai-model">LLM Model</label>
         <select class="select" id="ai-model">
-          <option value="qwen/qwen3.6-flash">qwen/qwen3.6-flash</option>
+          <option value="gemini-2.5-flash">gemini-2.5-flash</option>
         </select>
       </div>
       <div id="ai-chat-log" style="height:44vh;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--bg-elevated);display:flex;flex-direction:column;gap:8px"></div>
@@ -367,6 +367,7 @@ function openAssistantChat(materials, mocks, subjects) {
   };
 
   const selectedModel = () => modelSel?.value || 'qwen/qwen3.6-flash';
+  const selectedProvider = () => providerByModel.get(modelSel?.value) || 'openrouter';
 
   const parseAiResponse = async (res) => {
     const raw = await res.text();
@@ -418,7 +419,7 @@ function openAssistantChat(materials, mocks, subjects) {
     placeholder.textContent = `Using source: ${selected.sourceName} (${selected.pdfChars} chars)\n...`;
     try {
       const result = await callAi('/api/ai/ask',
-        { question: q, materials: selected.materials, mocks: selected.mocks, model: selectedModel() },
+        { question: q, materials: selected.materials, mocks: selected.mocks, model: selectedModel(), provider: selectedProvider() },
         attempt => { if (attempt > 1) placeholder.textContent = `Retrying (provider was busy)...`; }
       );
       placeholder.textContent = result.ok ? result.text : formatAiError(result.error, 'ask');
@@ -444,7 +445,7 @@ function openAssistantChat(materials, mocks, subjects) {
     placeholder.textContent = `Generating from ${selected.sourceName} (${selected.pdfChars} chars)...`;
     try {
       const result = await callAi('/api/ai/mock',
-        { subjectName, difficulty: 'medium', materials: selected.materials, mocks: selected.mocks, model: selectedModel() },
+        { subjectName, difficulty: 'medium', materials: selected.materials, mocks: selected.mocks, model: selectedModel(), provider: selectedProvider() },
         attempt => { if (attempt > 1) placeholder.textContent = `Retrying (provider was busy)...`; }
       );
       placeholder.textContent = result.ok ? result.text : formatAiError(result.error, 'mock');
@@ -462,51 +463,63 @@ function openAssistantChat(materials, mocks, subjects) {
     ? 'Select a PDF source and ask your question.'
     : 'No PDF found. Upload PDFs in Materials or Mocks first.');
 
-  const fallbackFree = [
-    'google/gemma-4-31b-it:free',
-    'google/gemma-4-26b-a4b-it:free',
-    'deepseek/deepseek-v4-flash:free',
-    'arcee-ai/trinity-large-thinking:free',
-    'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'
+  const providerByModel = new Map([['gemini-2.5-flash', 'gemini']]);
+
+  const fallbackGemini = [
+    { id: 'gemini-2.5-flash', provider: 'gemini' },
+    { id: 'gemini-2.5-flash-lite', provider: 'gemini' },
+    { id: 'gemini-2.5-pro', provider: 'gemini' }
   ];
-  const fallbackPaid = [
-    'qwen/qwen3.6-flash',
-    'qwen/qwen3.5-flash',
-    'openai/gpt-5.4',
-    'openai/gpt-5.4-mini',
-    'openai/gpt-5.5',
-    'anthropic/claude-opus-4.7',
-    'anthropic/claude-opus-4.6-fast',
-    'google/gemini-3.1-flash-lite',
-    'mistralai/mistral-medium-3.5',
-    'deepseek/deepseek-v4-pro',
-    'deepseek/deepseek-v4-flash'
+  const fallbackOpenrouterFree = [
+    { id: 'google/gemma-4-31b-it:free', provider: 'openrouter' },
+    { id: 'google/gemma-4-26b-a4b-it:free', provider: 'openrouter' },
+    { id: 'deepseek/deepseek-v4-flash:free', provider: 'openrouter' },
+    { id: 'arcee-ai/trinity-large-thinking:free', provider: 'openrouter' },
+    { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', provider: 'openrouter' }
   ];
-  const renderGroups = (freeIds, paidIds) => {
+  const fallbackOpenrouterPaid = [
+    { id: 'qwen/qwen3.6-flash', provider: 'openrouter' },
+    { id: 'qwen/qwen3.5-flash', provider: 'openrouter' },
+    { id: 'openai/gpt-5.4', provider: 'openrouter' },
+    { id: 'openai/gpt-5.4-mini', provider: 'openrouter' },
+    { id: 'openai/gpt-5.5', provider: 'openrouter' },
+    { id: 'anthropic/claude-opus-4.7', provider: 'openrouter' },
+    { id: 'anthropic/claude-opus-4.6-fast', provider: 'openrouter' },
+    { id: 'google/gemini-3.1-flash-lite', provider: 'openrouter' },
+    { id: 'mistralai/mistral-medium-3.5', provider: 'openrouter' },
+    { id: 'deepseek/deepseek-v4-pro', provider: 'openrouter' },
+    { id: 'deepseek/deepseek-v4-flash', provider: 'openrouter' }
+  ];
+
+  const renderGroups = (gemini, orFree, orPaid) => {
     if (!modelSel) return;
-    const opt = id => `<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`;
-    const freeGroup = freeIds.length
-      ? `<optgroup label="Free (no credits)">${freeIds.map(opt).join('')}</optgroup>`
+    providerByModel.clear();
+    const opt = m => {
+      providerByModel.set(m.id, m.provider || 'openrouter');
+      return `<option value="${escapeHtml(m.id)}">${escapeHtml(m.id)}</option>`;
+    };
+    const geminiGroup = gemini.length
+      ? `<optgroup label="Google Gemini (free, ~1500/day)">${gemini.map(opt).join('')}</optgroup>`
       : '';
-    const paidGroup = paidIds.length
-      ? `<optgroup label="Paid (requires credits)">${paidIds.map(opt).join('')}</optgroup>`
+    const orFreeGroup = orFree.length
+      ? `<optgroup label="OpenRouter Free (shared 200/day)">${orFree.map(opt).join('')}</optgroup>`
       : '';
-    modelSel.innerHTML = freeGroup + paidGroup;
+    const orPaidGroup = orPaid.length
+      ? `<optgroup label="OpenRouter Paid (credits required)">${orPaid.map(opt).join('')}</optgroup>`
+      : '';
+    modelSel.innerHTML = geminiGroup + orFreeGroup + orPaidGroup;
   };
+
   fetch('/api/ai/models')
     .then(r => r.json())
     .then(data => {
-      if (!data?.ok) return renderGroups(fallbackFree, fallbackPaid);
-      const freeIds = (data.free || []).map(m => m.id).filter(Boolean);
-      const paidIds = (data.paid || []).map(m => m.id).filter(Boolean);
-      if (!freeIds.length && !paidIds.length && Array.isArray(data.helpful)) {
-        const splitFree = data.helpful.filter(m => m?.id?.endsWith(':free')).map(m => m.id);
-        const splitPaid = data.helpful.filter(m => m?.id && !m.id.endsWith(':free')).map(m => m.id);
-        return renderGroups(splitFree, splitPaid);
-      }
-      renderGroups(freeIds, paidIds);
+      if (!data?.ok) return renderGroups(fallbackGemini, fallbackOpenrouterFree, fallbackOpenrouterPaid);
+      const gemini = (data.gemini || []).map(m => ({ id: m.id, provider: 'gemini' }));
+      const orFree = (data.openrouterFree || []).map(m => ({ id: m.id, provider: 'openrouter' }));
+      const orPaid = (data.openrouterPaid || []).map(m => ({ id: m.id, provider: 'openrouter' }));
+      renderGroups(gemini, orFree, orPaid);
     })
-    .catch(() => renderGroups(fallbackFree, fallbackPaid));
+    .catch(() => renderGroups(fallbackGemini, fallbackOpenrouterFree, fallbackOpenrouterPaid));
   translateDom(modal.el);
   renderIcons(modal.el);
 }
@@ -545,6 +558,9 @@ function formatAiError(message, mode) {
   }
   if (/OPENAI_API_KEY missing on server/i.test(text)) {
     return `${base}: Vercel is missing OPENAI_API_KEY.`;
+  }
+  if (/GEMINI_API_KEY missing on server/i.test(text)) {
+    return `${base}: Vercel is missing GEMINI_API_KEY. Get one at aistudio.google.com/apikey (free) and add it in Vercel env vars.`;
   }
   if (/not a valid model ID/i.test(text)) {
     return `${base}: the selected model ID is not valid for the current provider.`;

@@ -7,6 +7,7 @@ module.exports = async (req, res) => {
     const materials = Array.isArray(body?.materials) ? body.materials : [];
     const mocks = Array.isArray(body?.mocks) ? body.mocks : [];
     const model = body?.model ? String(body.model) : undefined;
+    const provider = body?.provider ? String(body.provider) : undefined;
     const subject = body?.subjectName || 'selected subject';
     const difficulty = body?.difficulty || 'medium';
 
@@ -19,6 +20,7 @@ module.exports = async (req, res) => {
 
     const text = await callModel({
       model,
+      provider,
       materials,
       mocks,
       maxTokens: 1800,
