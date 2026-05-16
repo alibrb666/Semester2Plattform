@@ -1,5 +1,5 @@
 import { renderIcons } from '../util.js';
-import { translateDom } from '../i18n.js';
+import { t, translateDom } from '../i18n.js';
 
 const root = () => document.getElementById('modal-root');
 let _stack = [];
@@ -32,7 +32,7 @@ export const Modal = {
       <div class="modal ${size ? 'modal-' + size : ''}" role="document">
         <div class="modal-header">
           <h2 class="modal-title" id="modal-title-${id}">${title || ''}</h2>
-          <button class="icon-btn modal-close-btn" aria-label="Schließen (Esc)">
+          <button class="icon-btn modal-close-btn" aria-label="${t('close')} (Esc)">
             <i data-lucide="x"></i>
           </button>
         </div>

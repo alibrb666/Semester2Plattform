@@ -525,7 +525,7 @@ function showAccountModal() {
     const uid = document.getElementById('account-uid');
     const name = document.getElementById('account-name');
     if (uid && u) uid.textContent = u.id;
-    if (name && u) name.textContent = u.user_metadata?.name || 'Nutzer';
+    if (name && u) name.textContent = u.user_metadata?.name || t('username');
   });
   modal.el.querySelector('#btn-account-close')?.addEventListener('click', () => modal.close());
   modal.el.querySelector('#btn-switch-profile')?.addEventListener('click', async () => {
@@ -549,11 +549,11 @@ function showAccountModal() {
   modal.el.querySelector('#btn-device-reset')?.addEventListener('click', async () => {
     modal.close();
     const confirmModal = Modal.open({
-      title: 'Gerät zurücksetzen?',
+      title: t('Gerät zurücksetzen?'),
       size: 'sm',
-      body: '<p style="color:var(--text-secondary);font-size:14px;line-height:1.55">Alle lokalen Daten werden gelöscht. Beim nächsten Start erscheint der Name-Screen wieder.<br><br>Daten in der Cloud bleiben erhalten — du kannst dich auf einem anderen Gerät wieder einloggen.</p>',
-      footer: `<button class="btn btn-ghost" id="device-reset-cancel">Abbrechen</button>
-               <button class="btn btn-danger" id="device-reset-confirm">Zurücksetzen</button>`
+      body: `<p style="color:var(--text-secondary);font-size:14px;line-height:1.55">${t('Alle lokalen Daten werden gelöscht. Beim nächsten Start erscheint der Name-Screen wieder.')}<br><br>${t('Daten in der Cloud bleiben erhalten — du kannst dich auf einem anderen Gerät wieder einloggen.')}</p>`,
+      footer: `<button class="btn btn-ghost" id="device-reset-cancel">${t('Abbrechen')}</button>
+               <button class="btn btn-danger" id="device-reset-confirm">${t('Zurücksetzen')}</button>`
     });
     confirmModal.el.querySelector('#device-reset-cancel')?.addEventListener('click', () => confirmModal.close());
     confirmModal.el.querySelector('#device-reset-confirm')?.addEventListener('click', async () => {
@@ -567,29 +567,29 @@ function showAccountModal() {
 
 function showShortcuts() {
   Modal.open({
-    title: 'Tastatur-Shortcuts',
+    title: t('Tastatur-Shortcuts'),
     size: 'lg',
     body: `
       <div class="shortcuts-grid">
         <div>
-          <div class="shortcut-section-title">Navigation</div>
+          <div class="shortcut-section-title">${t('Navigation')}</div>
           ${[
-            ['1–8', 'Zwischen Views wechseln'],
-            ['⌘K', 'Befehlspalette öffnen'],
-            ['T', 'Theme umschalten'],
-            ['?', 'Shortcuts anzeigen'],
+            ['1–8', t('Zwischen Views wechseln')],
+            ['⌘K', t('Befehlspalette öffnen')],
+            ['T', t('Theme umschalten')],
+            ['?', t('Shortcuts anzeigen')],
           ].map(([k,d]) => `<div class="shortcut-row">
             <span class="shortcut-desc">${d}</span>
             <span class="shortcut-keys"><kbd>${k}</kbd></span>
           </div>`).join('')}
         </div>
         <div>
-          <div class="shortcut-section-title">Session & Capture</div>
+          <div class="shortcut-section-title">${t('Session & Capture')}</div>
           ${[
-            ['S', 'Session starten / stoppen'],
+            ['S', t('Session starten / stoppen')],
             ['F', 'Focus Mode'],
-            ['N', 'Schnell erfassen'],
-            ['Esc', 'Modal schließen / Focus beenden'],
+            ['N', t('Schnell erfassen')],
+            ['Esc', t('Modal schließen / Focus beenden')],
           ].map(([k,d]) => `<div class="shortcut-row">
             <span class="shortcut-desc">${d}</span>
             <span class="shortcut-keys"><kbd>${k}</kbd></span>

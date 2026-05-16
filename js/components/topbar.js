@@ -2,6 +2,7 @@ import { State } from '../state.js';
 import { daysUntil, formatDuration, sumDuration, getSubjectSessions, renderIcons,
   formatDateFull, formatTime } from '../util.js';
 import { Modal } from './modal.js';
+import { t, translateDom } from '../i18n.js';
 
 let _interval = null;
 let _topBarInited = false;
@@ -44,7 +45,7 @@ export const TopBar = {
       return `
         <button class="countdown-pill ${cls}" data-subject-id="${s.id}"
           style="border-left-color:${subColor}"
-          aria-label="${s.name}: noch ${days} Tage">
+          aria-label="${s.name}: ${t('Klausur in')} ${days} ${t(days === 1 ? 'Tag' : 'Tage')}">
           <span class="pill-name">${s.name.split(' ')[0]}</span>
           <span class="pill-days">${days}d</span>
           <span class="pill-hours">${formatDuration(totalSec)}</span>
@@ -73,37 +74,41 @@ export const TopBar = {
       body: `
         <div style="display:flex;gap:24px;margin-bottom:20px;flex-wrap:wrap">
           <div class="card" style="flex:1;min-width:120px;text-align:center">
-            <div class="stat-label">Klausur in</div>
+            <div class="stat-label">${t('Klausur in')}</div>
             <div class="stat-value" style="font-size:36px;color:var(--subject-${subjectId})">${days}d</div>
             <div class="card-sub">${formatDateFull(subject.examDate)}</div>
           </div>
           <div class="card" style="flex:1;min-width:120px;text-align:center">
-            <div class="stat-label">Gelernt gesamt</div>
+            <div class="stat-label">${t('Gelernt gesamt')}</div>
             <div class="stat-value">${formatDuration(totalSec, 'long')}</div>
           </div>
           <div class="card" style="flex:1;min-width:120px;text-align:center">
-            <div class="stat-label">Mocks</div>
+            <div class="stat-label">${t('Mocks')}</div>
             <div class="stat-value">${mocks.length}</div>
           </div>
           <div class="card" style="flex:1;min-width:120px;text-align:center">
-            <div class="stat-label">Fehler</div>
+            <div class="stat-label">${t('Fehler')}</div>
             <div class="stat-value">${errors.length}</div>
           </div>
         </div>
-        <div class="section-title" style="margin-bottom:12px">Letzte Sessions</div>
+        <div class="section-title" style="margin-bottom:12px">${t('Letzte Sessions')}</div>
         ${sessions.length ? sessions.map(s => `
           <div class="session-item" style="margin-bottom:6px">
             <div class="session-color-bar" style="background:var(--subject-${subjectId})"></div>
             <div class="session-info">
-              <div class="session-note">${s.note || 'Keine Notiz'}</div>
+              <div class="session-note">${s.note || t('Keine Notiz')}</div>
               <div class="session-subject">${formatDateFull(s.startedAt)} · ${formatTime(s.startedAt)}</div>
             </div>
             <div class="session-meta">
               <div class="session-duration">${formatDuration(s.durationSeconds)}</div>
             </div>
-          </div>`).join('') : '<div class="empty-sub">Noch keine Sessions.</div>'}
+          </div>`).join('') : `<div class="empty-sub">${t('Noch keine Sessions.')}</div>`}
       `
     });
-    renderIcons(document.querySelector('.modal'));
+    const modal = document.querySelector('.modal');
+    if (modal) {
+      translateDom(modal);
+      renderIcons(modal);
+    }
   }
 };

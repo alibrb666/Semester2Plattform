@@ -1,4 +1,5 @@
 import { renderIcons } from '../util.js';
+import { t } from '../i18n.js';
 
 const ICONS = { success:'check-circle', error:'x-circle', warning:'alert-triangle', info:'info' };
 const stack = () => document.getElementById('toast-stack');
@@ -19,7 +20,7 @@ export const Toast = {
         ${detail ? `<div class="toast-msg">${detail}</div>` : ''}
       </div>
       ${actionHtml}
-      <button class="icon-btn toast-dismiss" style="width:24px;height:24px" aria-label="Schließen">
+      <button class="icon-btn toast-dismiss" style="width:24px;height:24px" aria-label="${t('close')}">
         <i data-lucide="x"></i>
       </button>
     `;

@@ -3,7 +3,7 @@ import { uuid, formatDuration, playSound, renderIcons } from '../util.js';
 import { Modal } from './modal.js';
 import { Toast } from './toast.js';
 import { launchConfetti } from './confetti.js';
-import { translateDom } from '../i18n.js';
+import { t, translateDom } from '../i18n.js';
 
 const STORAGE_KEY = 'learn.active_session';
 
@@ -48,7 +48,7 @@ function getSessionElapsed(session) {
 function makeTask(title) {
   return {
     id: uuid(),
-    title: (title || 'Allgemein').trim(),
+    title: (title || t('Allgemein')).trim(),
     status: 'pending',
     durationSeconds: 0,
     activeStartedAt: null,
@@ -118,7 +118,7 @@ export const SessionTracker = {
     if (this._session) return;
     const tasks = taskTitles.length
       ? taskTitles.map(t => makeTask(t))
-      : [makeTask('Allgemein')];
+      : [makeTask(t('Allgemein'))];
 
     tasks[0].status = 'active';
     tasks[0].activeStartedAt = new Date().toISOString();
@@ -301,7 +301,7 @@ export const SessionTracker = {
 
     const body = `
       <div class="field">
-        <label>Fach</label>
+        <label>${t('Fach')}</label>
         <div class="subject-picker" id="ns-subject-picker">
           ${subjects.map(s => `
             <button class="subject-pick-btn${s.id === defaultSubj ? ' selected' : ''}"
@@ -315,16 +315,16 @@ export const SessionTracker = {
         <label for="ns-tasks">Tasks <span class="label-hint">(optional, eine pro Zeile)</span></label>
         <textarea class="textarea" id="ns-tasks" rows="4"
           placeholder="BAB Kostenstellenrechnung&#10;Theorie wiederholen&#10;Anki-Karten erstellen"></textarea>
-        <div class="field-hint">Leer lassen für eine allgemeine Session</div>
+        <div class="field-hint">${t('Leer lassen für eine allgemeine Session')}</div>
       </div>`;
 
     const modal = Modal.open({
-      title: 'Neue Session',
+      title: t('Neue Session'),
       body,
       footer: `
-        <button class="btn btn-ghost" id="ns-cancel" type="button">Abbrechen</button>
+        <button class="btn btn-ghost" id="ns-cancel" type="button">${t('Abbrechen')}</button>
         <button class="btn btn-primary" id="ns-start" type="button">
-          <i data-lucide="play"></i> Session starten
+          <i data-lucide="play"></i> ${t('Session starten')}
         </button>`
     });
 
@@ -356,7 +356,7 @@ export const SessionTracker = {
     let selectedTags = [];
     let rating = 0;
 
-    const showTasks = session.tasks.length > 1 || session.tasks[0]?.title !== 'Allgemein';
+    const showTasks = session.tasks.length > 1 || session.tasks[0]?.title !== t('Allgemein');
     const taskRows  = session.tasks.map(t => {
       const done = t.status === 'done';
       return `<div class="stop-task-row${done ? ' done' : ''}">
@@ -370,15 +370,15 @@ export const SessionTracker = {
       <div class="stop-header">
         <div class="stop-subject">${subject?.name || ''}</div>
         <div class="stop-time num-display">${formatDuration(totalSecs, 'timer')}</div>
-        <div class="stop-time-label">Gesamt</div>
+        <div class="stop-time-label">${t('Gesamt')}</div>
       </div>
       ${showTasks ? `<div class="field"><label>Tasks</label><div class="stop-task-list">${taskRows}</div></div>` : ''}
       <div class="field">
-        <label for="stop-note">Notiz</label>
-        <textarea class="textarea" id="stop-note" rows="3" placeholder="Was hast du gemacht?" style="resize:none">${session.note || ''}</textarea>
+        <label for="stop-note">${t('Notiz')}</label>
+        <textarea class="textarea" id="stop-note" rows="3" placeholder="${t('Was hast du gemacht?')}" style="resize:none">${session.note || ''}</textarea>
       </div>
       <div class="field">
-        <label>Tags</label>
+        <label>${t('Tags')}</label>
         <div class="tag-options" id="stop-tags">
           ${['Theorie','Übung','Mock','Wiederholung','Klausurvorbereitung'].map(t =>
             `<button class="tag-opt" data-tag="${t}" type="button">${t}</button>`
@@ -386,7 +386,7 @@ export const SessionTracker = {
         </div>
       </div>
       <div class="field">
-        <label>Wie produktiv?</label>
+        <label>${t('Wie produktiv?')}</label>
         <div class="star-rating" id="stop-stars">
           ${[1,2,3,4,5].map(n =>
             `<button class="star-btn" data-val="${n}" type="button" aria-label="${n} Stern${n > 1 ? 'e' : ''}">★</button>`
@@ -395,12 +395,12 @@ export const SessionTracker = {
       </div>`;
 
     const modal = Modal.open({
-      title: 'Session abschließen',
+      title: t('Session abschließen'),
       body,
       footer: `
-        <button class="btn btn-ghost" id="stop-continue"  type="button">Fortsetzen</button>
-        <button class="btn btn-ghost" id="stop-discard"   type="button" style="color:var(--text-tertiary)">Verwerfen</button>
-        <button class="btn btn-primary" id="stop-save"    type="button">Speichern</button>`
+        <button class="btn btn-ghost" id="stop-continue"  type="button">${t('Fortsetzen')}</button>
+        <button class="btn btn-ghost" id="stop-discard"   type="button" style="color:var(--text-tertiary)">${t('Verwerfen')}</button>
+        <button class="btn btn-primary" id="stop-save"    type="button">${t('Speichern')}</button>`
     });
 
     renderIcons(modal.el);
@@ -443,7 +443,7 @@ export const SessionTracker = {
     modal.el.querySelector('#stop-save')?.addEventListener('click', () => {
       const note = modal.el.querySelector('#stop-note').value;
       if (totalSecs < 60) {
-        Toast.warning('Zu kurz', 'Sessions unter 1 Minute werden nicht gespeichert.');
+        Toast.warning(t('Zu kurz'), t('Sessions unter 1 Minute werden nicht gespeichert.'));
         return;
       }
       this._persistSession(session, totalSecs, note, selectedTags, rating);
@@ -451,7 +451,7 @@ export const SessionTracker = {
       saveActive(null);
       this._render();
       modal.close();
-      Toast.success('Session gespeichert', formatDuration(totalSecs));
+      Toast.success(t('Session gespeichert'), formatDuration(totalSecs));
       const settings = State.getSettings();
       if (settings.soundEnabled) playSound('stop');
       document.dispatchEvent(new CustomEvent('session:statechange', { detail: null }));
@@ -509,9 +509,9 @@ export const SessionTracker = {
       widget.style.borderColor = '';
       widget.innerHTML = `
         <div class="widget-idle">
-          <div class="widget-idle-label">Keine Session aktiv</div>
+          <div class="widget-idle-label">${t('Keine Session aktiv')}</div>
           <button class="btn btn-primary btn-sm widget-start" data-widget-action="new-session" type="button">
-            <i data-lucide="play"></i> Neue Session
+            <i data-lucide="play"></i> ${t('Neue Session')}
           </button>
         </div>`;
     } else {
@@ -546,7 +546,7 @@ export const SessionTracker = {
             <div class="widget-subject-pill">
               <div class="widget-dot" style="background:var(--subject-${s.subjectId})"></div>
               <span>${subject?.name || ''}</span>
-              ${paused ? '<span class="badge badge-warning" style="margin-left:auto">Pause</span>' : ''}
+              ${paused ? `<span class="badge badge-warning" style="margin-left:auto">${t('Pause')}</span>` : ''}
             </div>
             <div class="widget-top-actions">
               ${paused
@@ -558,10 +558,10 @@ export const SessionTracker = {
           </div>
           <div class="widget-tasks">${taskHtml}</div>
           <button class="widget-add-task-btn" data-widget-action="add-task" type="button">
-            <i data-lucide="plus"></i> Task hinzufügen
+            <i data-lucide="plus"></i> ${t('Task hinzufügen')}
           </button>
           <div class="widget-footer">
-            <span class="widget-footer-label">Gesamt</span>
+            <span class="widget-footer-label">${t('Gesamt')}</span>
             <span class="widget-total-time num-display" data-session-timer>${formatDuration(total, 'timer')}</span>
           </div>
         </div>`;
@@ -596,7 +596,7 @@ export const SessionTracker = {
     const input = document.createElement('input');
     input.type        = 'text';
     input.className   = 'input widget-add-task-input';
-    input.placeholder = 'Task-Titel, dann Enter…';
+    input.placeholder = t('Task-Titel, dann Enter…');
     addBtn.replaceWith(input);
     input.focus();
 
@@ -641,7 +641,7 @@ export const SessionTracker = {
     if (!settings.notificationsEnabled) return;
     _notifTimer = setTimeout(() => {
       if (Notification.permission === 'granted' && this._session) {
-        new Notification('Lernpause?', { body: 'Du lernst seit 50 Minuten. Zeit für eine kurze Pause?' });
+        new Notification(t('Lernpause?'), { body: t('Du lernst seit 50 Minuten. Zeit für eine kurze Pause?') });
       }
     }, 50 * 60 * 1000);
   }

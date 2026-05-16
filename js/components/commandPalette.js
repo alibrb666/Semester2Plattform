@@ -3,37 +3,39 @@ import { Router } from '../router.js';
 import { Theme } from '../theme.js';
 import { fuzzyMatch, renderIcons } from '../util.js';
 import { SessionTracker } from './sessionTracker.js';
-import { translateDom } from '../i18n.js';
+import { t, translateDom } from '../i18n.js';
 
-const VIEWS = [
-  { id:'dashboard',   label:'Dashboard öffnen',      icon:'layout-dashboard', action: ()=>Router.navigate('dashboard') },
-  { id:'schedule',    label:'Stundenplan',            icon:'calendar-days',    action: ()=>Router.navigate('schedule') },
-  { id:'sessions',    label:'Sessions',               icon:'timer',            action: ()=>Router.navigate('sessions') },
-  { id:'statistics',  label:'Statistik',              icon:'line-chart',       action: ()=>Router.navigate('statistics') },
-  { id:'errors',      label:'Fehlerbuch',             icon:'book-open',        action: ()=>Router.navigate('errors') },
-  { id:'mocks',       label:'Probeklausuren',         icon:'file-check-2',     action: ()=>Router.navigate('mocks') },
-  { id:'settings',    label:'Einstellungen',          icon:'settings',         action: ()=>Router.navigate('settings') },
-];
+function getViewActions() {
+  return [
+    { id:'dashboard',   label:t('Dashboard öffnen'),      icon:'layout-dashboard', action: ()=>Router.navigate('dashboard') },
+    { id:'schedule',    label:t('Stundenplan'),           icon:'calendar-days',    action: ()=>Router.navigate('schedule') },
+    { id:'sessions',    label:t('Sessions'),              icon:'timer',            action: ()=>Router.navigate('sessions') },
+    { id:'statistics',  label:t('Statistik'),             icon:'line-chart',       action: ()=>Router.navigate('statistics') },
+    { id:'errors',      label:t('Fehlerbuch'),            icon:'book-open',        action: ()=>Router.navigate('errors') },
+    { id:'mocks',       label:t('Probeklausuren'),        icon:'file-check-2',     action: ()=>Router.navigate('mocks') },
+    { id:'settings',    label:t('Einstellungen'),         icon:'settings',         action: ()=>Router.navigate('settings') },
+  ];
+}
 
 function getActions() {
   const subjects = State.getSubjects();
   const startActions = subjects.map(s => ({
     id: 'start-'+s.id,
-    label: `Session starten – ${s.name}`,
+    label: `${t('Session starten')} – ${s.name}`,
     icon: 'play',
     action: () => SessionTracker.openNewSession(s.id)
   }));
   return [
     ...startActions,
-    { id:'new-error', label:'Neuer Fehlerbuch-Eintrag', icon:'plus-circle',
+    { id:'new-error', label:t('Neuer Fehlerbuch-Eintrag'), icon:'plus-circle',
       action: () => { Router.navigate('errors'); document.dispatchEvent(new CustomEvent('errors:new')); } },
-    { id:'new-mock', label:'Mock einloggen', icon:'file-plus',
+    { id:'new-mock', label:t('Mock einloggen'), icon:'file-plus',
       action: () => { Router.navigate('mocks'); document.dispatchEvent(new CustomEvent('mocks:new')); } },
-    { id:'theme', label:'Theme umschalten', icon:'sun-moon',
+    { id:'theme', label:t('Theme umschalten'), icon:'sun-moon',
       action: () => Theme.toggle() },
-    { id:'export', label:'Daten exportieren', icon:'download',
+    { id:'export', label:t('Daten exportieren'), icon:'download',
       action: () => { Router.navigate('settings'); document.dispatchEvent(new CustomEvent('settings:export')); } },
-    ...VIEWS
+    ...getViewActions()
   ];
 }
 
@@ -55,10 +57,10 @@ export const CommandPalette = {
     const backdrop = document.createElement('div');
     backdrop.className = 'cmd-backdrop';
     backdrop.innerHTML = `
-      <div class="cmd-box" role="dialog" aria-label="Befehlspalette" aria-modal="true">
+      <div class="cmd-box" role="dialog" aria-label="${t('Befehlspalette öffnen')}" aria-modal="true">
         <div class="cmd-input-wrap">
           <i data-lucide="search"></i>
-          <input class="cmd-input" id="cmd-input" type="text" placeholder="Suchen oder Befehl eingeben…" autocomplete="off" spellcheck="false" />
+          <input class="cmd-input" id="cmd-input" type="text" placeholder="${t('Suchen oder Befehl eingeben…')}" autocomplete="off" spellcheck="false" />
           <kbd style="font-size:11px;color:var(--text-disabled);font-family:var(--font-mono);flex-shrink:0">Esc</kbd>
         </div>
         <div class="cmd-list" id="cmd-list"></div>
@@ -104,7 +106,7 @@ export const CommandPalette = {
     _selected = 0;
 
     if (!filtered.length) {
-      list.innerHTML = `<div class="cmd-empty">Keine Ergebnisse für "${q}"</div>`;
+      list.innerHTML = `<div class="cmd-empty">${t('Keine Ergebnisse für')} "${q}"</div>`;
       translateDom(list);
       return;
     }

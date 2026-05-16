@@ -1,6 +1,7 @@
 import { SessionTracker } from './sessionTracker.js';
 import { State } from '../state.js';
 import { formatDuration } from '../util.js';
+import { t, translateDom } from '../i18n.js';
 
 let _el = null;
 let _ticker = null;
@@ -25,12 +26,12 @@ export const FocusMode = {
     el.className = 'focus-mode';
     el.style.setProperty('--focus-color', color);
     el.innerHTML = `
-      <div class="focus-subject">${subject?.name || 'Keine aktive Session'}</div>
+      <div class="focus-subject">${subject?.name || t('Keine aktive Session')}</div>
       <div class="focus-timer num-display">${formatDuration(getElapsed(),'timer')}</div>
-      <input class="focus-note" type="text" placeholder="Woran arbeitest du gerade?"
-        value="${session?.note || ''}" aria-label="Aktuelle Aufgabe" />
+      <input class="focus-note" type="text" placeholder="${t('Woran arbeitest du gerade?')}"
+        value="${session?.note || ''}" aria-label="${t('Aktuelle Aufgabe')}" />
       <div class="focus-exit">
-        Drücke <kbd>Esc</kbd> oder <button class="btn btn-ghost btn-sm">Beenden</button>
+        ${t('Drücke')} <kbd>Esc</kbd> ${t('oder')} <button class="btn btn-ghost btn-sm">${t('Beenden')}</button>
       </div>
     `;
 
@@ -44,6 +45,7 @@ export const FocusMode = {
     });
 
     document.body.appendChild(el);
+    translateDom(el);
     _el = el;
     el.focus();
 
