@@ -240,7 +240,8 @@ function showNameScreen() {
     finally { if (btn) { btn.disabled = false; } }
   };
 
-  function renderProfileScreen(mode = 'list', selected = null) {
+  let _cloudProfilesRequested = false;
+  async function renderProfileScreen(mode = 'list', selected = null) {
     const profiles = Auth.listProfiles();
     const hasProfiles = profiles.length > 0;
     const langOptions = LANGUAGES.map(l => `<option value="${l.code}" ${getLanguage() === l.code ? 'selected' : ''}>${t(l.labelKey)}</option>`).join('');
@@ -331,6 +332,14 @@ function showNameScreen() {
       });
     });
     setTimeout(() => screen.querySelector('input,button.profile-tile')?.focus(), 50);
+
+    if (!_cloudProfilesRequested) {
+      _cloudProfilesRequested = true;
+      const before = profiles.map(p => p.id).join(',');
+      const merged = await Auth.syncProfilesFromCloud();
+      const after = merged.map(p => p.id).join(',');
+      if (before !== after) renderProfileScreen(mode, selected && merged.find(p => p.id === selected.id));
+    }
   }
 
   renderProfileScreen();

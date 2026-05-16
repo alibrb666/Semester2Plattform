@@ -89,6 +89,22 @@ function recoverProfilesFromLocalStates(existing = []) {
   return profiles;
 }
 
+function mergeProfiles(base = [], incoming = []) {
+  const map = new Map();
+  [...base, ...incoming].forEach(p => {
+    if (!p?.id || !p?.name) return;
+    const prev = map.get(p.id) || {};
+    map.set(p.id, {
+      id: p.id,
+      name: p.name || prev.name || 'Nutzer',
+      pinHash: p.pinHash ?? prev.pinHash ?? null,
+      language: p.language || prev.language || 'de',
+      lastUsedAt: p.lastUsedAt || prev.lastUsedAt || null
+    });
+  });
+  return [...map.values()];
+}
+
 export const Auth = {
   listProfiles() {
     let profiles = readProfiles();
@@ -100,6 +116,32 @@ export const Auth = {
     }
     writeProfiles(profiles);
     return profiles.sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
+  },
+
+  async syncProfilesFromCloud() {
+    const local = this.listProfiles();
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id,name,updated_at,settings')
+        .order('updated_at', { ascending: false })
+        .limit(300);
+      if (error || !Array.isArray(data)) return local;
+      const cloud = data
+        .filter(p => p?.id && p?.name)
+        .map(p => ({
+          id: p.id,
+          name: p.name,
+          pinHash: null,
+          language: p?.settings?.language || 'de',
+          lastUsedAt: p.updated_at || null
+        }));
+      const merged = mergeProfiles(local, cloud);
+      writeProfiles(merged);
+      return merged.sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
+    } catch {
+      return local;
+    }
   },
 
   async signInWithUsername(name, options = {}) {

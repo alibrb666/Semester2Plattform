@@ -384,7 +384,24 @@ const PHRASES = {
     'Fehlerbuch-Eintrag': 'Error-log entry',
     'Fehlerbuch-Einträge': 'Error-log entries',
     'ist zur Wiederholung fällig.': 'is due for review.',
-    'sind zur Wiederholung fällig.': 'are due for review.'
+    'sind zur Wiederholung fällig.': 'are due for review.',
+    'Gerät zurücksetzen?': 'Reset device?',
+    'Session & Capture': 'Session & Capture',
+    'Kalendereintrag': 'Calendar event',
+    'Aktualisiert': 'Updated',
+    'Synchronisiert': 'Synced',
+    'Sync fehlgeschlagen': 'Sync failed',
+    'Zuordnung gespeichert': 'Assignment saved',
+    'Lernblock gespeichert': 'Study block saved',
+    'Lernblock aktualisiert': 'Study block updated',
+    'Lernblock gelöscht': 'Study block deleted',
+    'Kein Live-Kalender': 'No live calendar',
+    'Keine URL': 'No URL',
+    'URL fehlt': 'Missing URL',
+    'Kalender verbunden': 'Calendar connected',
+    'Kalender-Verbindung getrennt': 'Calendar disconnected',
+    'ICS eingelesen': 'ICS loaded',
+    'ICS ungültig': 'Invalid ICS'
   },
   fr: {
     'Einstellungen': 'Paramètres',
@@ -600,7 +617,24 @@ const PHRASES = {
     'Fehlerbuch-Eintrag': 'Entrée du journal d’erreurs',
     'Fehlerbuch-Einträge': 'Entrées du journal d’erreurs',
     'ist zur Wiederholung fällig.': 'est à revoir.',
-    'sind zur Wiederholung fällig.': 'sont à revoir.'
+    'sind zur Wiederholung fällig.': 'sont à revoir.',
+    'Gerät zurücksetzen?': 'Réinitialiser l’appareil ?',
+    'Session & Capture': 'Session & capture',
+    'Kalendereintrag': 'Événement du calendrier',
+    'Aktualisiert': 'Mis à jour',
+    'Synchronisiert': 'Synchronisé',
+    'Sync fehlgeschlagen': 'Échec de synchronisation',
+    'Zuordnung gespeichert': 'Attribution enregistrée',
+    'Lernblock gespeichert': 'Bloc d’étude enregistré',
+    'Lernblock aktualisiert': 'Bloc d’étude mis à jour',
+    'Lernblock gelöscht': 'Bloc d’étude supprimé',
+    'Kein Live-Kalender': 'Pas de calendrier en direct',
+    'Keine URL': 'Aucune URL',
+    'URL fehlt': 'URL manquante',
+    'Kalender verbunden': 'Calendrier connecté',
+    'Kalender-Verbindung getrennt': 'Connexion calendrier supprimée',
+    'ICS eingelesen': 'ICS chargé',
+    'ICS ungültig': 'ICS invalide'
   }
 };
 
