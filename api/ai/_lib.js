@@ -27,12 +27,12 @@ function buildSourceContext(materials = [], mocks = []) {
   return lines.join('\n');
 }
 
-async function callOpenRouter({ model, system, prompt, materials, mocks }) {
+async function callOpenRouter({ model, system, prompt, materials, mocks, maxTokens }) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY missing on server');
 
   const body = {
-    model: model || process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.1-8b-instruct',
+    model: model || process.env.OPENROUTER_MODEL || 'qwen/qwen3.6-flash',
     messages: [
       { role: 'system', content: system },
       {
@@ -40,6 +40,7 @@ async function callOpenRouter({ model, system, prompt, materials, mocks }) {
         content: `SOURCE SUMMARY:\n${buildSourceContext(materials, mocks) || 'No metadata available.'}\n\nTASK:\n${prompt}`
       }
     ],
+    max_completion_tokens: maxTokens || 1200,
     temperature: 0.3
   };
 
@@ -58,7 +59,7 @@ async function callOpenRouter({ model, system, prompt, materials, mocks }) {
   return data?.choices?.[0]?.message?.content || 'No output.';
 }
 
-async function callOpenAI({ model, system, prompt, materials, mocks }) {
+async function callOpenAI({ model, system, prompt, materials, mocks, maxTokens }) {
   const apiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_APIKEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY missing on server');
   const resp = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -76,6 +77,7 @@ async function callOpenAI({ model, system, prompt, materials, mocks }) {
           content: `SOURCE SUMMARY:\n${buildSourceContext(materials, mocks) || 'No metadata available.'}\n\nTASK:\n${prompt}`
         }
       ],
+      max_tokens: maxTokens || 1200,
       temperature: 0.3
     })
   });
@@ -95,4 +97,3 @@ module.exports = {
   getBody,
   callModel
 };
-

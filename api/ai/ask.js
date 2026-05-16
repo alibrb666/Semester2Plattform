@@ -15,6 +15,7 @@ module.exports = async (req, res) => {
       model,
       materials,
       mocks,
+      maxTokens: 900,
       system: 'You are a study tutor. Answer only with evidence from provided source content. If uncertain, say so.',
       prompt: question
     });
@@ -23,4 +24,3 @@ module.exports = async (req, res) => {
     return json(res, 500, { error: String(err?.message || err) });
   }
 };
-

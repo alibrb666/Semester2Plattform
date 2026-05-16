@@ -256,7 +256,7 @@ function openAssistantChat(materials, mocks, subjects) {
       <div class="field">
         <label for="ai-model">LLM Model</label>
         <select class="select" id="ai-model">
-          <option value="llama3.1:8b">llama3.1:8b</option>
+          <option value="qwen/qwen3.6-flash">qwen/qwen3.6-flash</option>
         </select>
       </div>
       <div id="ai-chat-log" style="height:44vh;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--bg-elevated);display:flex;flex-direction:column;gap:8px"></div>
@@ -361,7 +361,14 @@ function openAssistantChat(materials, mocks, subjects) {
     ? 'Select a PDF source and ask your question.'
     : 'No PDF found. Upload PDFs in Materials or Mocks first.');
 
-  const fallbackModels = ['llama3.1:8b', 'qwen2.5:14b', 'mistral-nemo:12b', 'deepseek-r1:8b', 'phi4:14b'];
+  const fallbackModels = [
+    'qwen/qwen3.6-flash',
+    'meta-llama/llama-3.1-8b-instruct',
+    'qwen/qwen3.6-plus',
+    'mistralai/mistral-medium-3.5',
+    'deepseek/deepseek-v3.2',
+    'microsoft/phi-4-mini-instruct'
+  ];
   fetch('/api/ai/models')
     .then(r => r.json())
     .then(data => {

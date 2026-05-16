@@ -21,6 +21,7 @@ module.exports = async (req, res) => {
       model,
       materials,
       mocks,
+      maxTokens: 1800,
       system: 'You are an exam generator. Use only provided source context. If source is insufficient, explicitly list missing content.',
       prompt
     });
@@ -29,4 +30,3 @@ module.exports = async (req, res) => {
     return json(res, 500, { error: String(err?.message || err) });
   }
 };
-
