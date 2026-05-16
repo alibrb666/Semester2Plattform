@@ -325,7 +325,7 @@ function openAssistantChat(materials, mocks, subjects) {
       const data = await res.json();
       placeholder.textContent = res.ok && data?.ok ? data.text : (data?.error || 'Unknown error');
     } catch (e) {
-      placeholder.textContent = `Request failed: ${String(e?.message || e)}\nTip: make sure Ollama is running and the selected model is installed.`;
+      placeholder.textContent = `Request failed: ${String(e?.message || e)}\nTip: check API env keys on server and selected model availability.`;
     }
   };
 
@@ -348,7 +348,7 @@ function openAssistantChat(materials, mocks, subjects) {
       const data = await res.json();
       placeholder.textContent = res.ok && data?.ok ? data.text : (data?.error || 'Unknown error');
     } catch (e) {
-      placeholder.textContent = `Request failed: ${String(e?.message || e)}\nTip: make sure Ollama is running and the selected model is installed.`;
+      placeholder.textContent = `Request failed: ${String(e?.message || e)}\nTip: check API env keys on server and selected model availability.`;
     }
   };
 
