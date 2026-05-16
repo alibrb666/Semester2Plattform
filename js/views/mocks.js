@@ -2,6 +2,7 @@ import { State } from '../state.js';
 import { uuid, formatDateShort, renderIcons } from '../util.js';
 import { Modal } from '../components/modal.js';
 import { Toast } from '../components/toast.js';
+import { translateDom } from '../i18n.js';
 
 let _charts = [];
 
@@ -28,6 +29,7 @@ export function renderMocks(container) {
     </div>`;
 
   renderIcons(container);
+  translateDom(container);
   renderAll(container, subjects);
 
   container.querySelector('#btn-add-mock')?.addEventListener('click', () => openAddModal(subjects, () => renderAll(container, subjects)));

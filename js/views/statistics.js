@@ -1,6 +1,7 @@
 import { State } from '../state.js';
 import { formatDuration, sumDuration, getStreak, getWeekSessions, getWeekMonday,
   addDays, isoDate, cssVar, renderIcons } from '../util.js';
+import { translateDom } from '../i18n.js';
 
 let _charts = [];
 
@@ -97,6 +98,7 @@ export function renderStatistics(container) {
     </div>`;
 
   renderIcons(container);
+  translateDom(container);
   renderSubjectGoals(container, subjects, sessions, settings, weekMon);
 
   function build() {
@@ -157,7 +159,7 @@ function buildWeeklyChart(sessions, subjects) {
   const weeks = Array.from({length:8}, (_,i) => addDays(getWeekMonday(), -(7-i) * (i < 7 ? 1 : 0)));
   const labels = Array.from({length:8}, (_,i) => {
     const mon = addDays(getWeekMonday(), -(7-i)*7);
-    return mon.toLocaleDateString('de-DE',{day:'numeric',month:'short'});
+    return mon.toLocaleDateString(undefined,{day:'numeric',month:'short'});
   });
 
   const datasets = subjects.map(s => ({

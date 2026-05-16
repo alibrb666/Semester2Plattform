@@ -1,3 +1,5 @@
+import { getLanguage, t } from './i18n.js';
+
 export function uuid() {
   return crypto.randomUUID ? crypto.randomUUID()
     : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -24,24 +26,32 @@ export function formatDuration(seconds, style = 'short') {
 
 function pad(n) { return String(n).padStart(2, '0'); }
 
+function locale() {
+  return ({ de: 'de-DE', en: 'en-US', fr: 'fr-FR' })[getLanguage()] || 'de-DE';
+}
+
+export function localeTag() {
+  return locale();
+}
+
 export function formatDateDE(date) {
   const d = toDate(date);
-  return d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return d.toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 export function formatDateShort(date) {
   const d = toDate(date);
-  return d.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
+  return d.toLocaleDateString(locale(), { day: 'numeric', month: 'short' });
 }
 
 export function formatDateFull(date) {
   const d = toDate(date);
-  return d.toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' });
+  return d.toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 export function formatTime(date) {
   const d = toDate(date);
-  return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
 }
 
 function toDate(v) {
@@ -52,9 +62,9 @@ function toDate(v) {
 export function greeting(name) {
   const h = new Date().getHours();
   let g;
-  if (h < 12) g = 'Good morning';
-  else if (h < 18) g = 'Good afternoon';
-  else g = 'Good evening';
+  if (h < 12) g = t('goodMorning');
+  else if (h < 18) g = t('goodAfternoon');
+  else g = t('goodEvening');
   return `${g}, ${name || 'Lukas'}`;
 }
 
@@ -103,7 +113,7 @@ export function getWeekDays(weekMonday) {
 }
 
 export function getDayName(date, format = 'long') {
-  return toDate(date).toLocaleDateString('de-DE', { weekday: format });
+  return toDate(date).toLocaleDateString(locale(), { weekday: format });
 }
 
 export function isoDate(date = new Date()) {
@@ -125,9 +135,9 @@ export function getPhase(date = new Date()) {
   const d = toDate(date);
   const p1End = _phases?.p1End ? new Date(_phases.p1End) : new Date('2026-06-14');
   const p2End = _phases?.p2End ? new Date(_phases.p2End) : new Date('2026-06-30');
-  if (d <= p1End) return { num: 1, label: 'Phase 1 – Stoff aufbauen', color: 'var(--subject-klr)' };
-  if (d <= p2End) return { num: 2, label: 'Phase 2 – Vertiefung', color: 'var(--subject-prog)' };
-  return { num: 3, label: 'Phase 3 – Klausurmodus', color: 'var(--danger)' };
+  if (d <= p1End) return { num: 1, label: t('phase1'), color: 'var(--subject-klr)' };
+  if (d <= p2End) return { num: 2, label: t('phase2'), color: 'var(--subject-prog)' };
+  return { num: 3, label: t('phase3'), color: 'var(--danger)' };
 }
 
 export function getStreak(sessions, dailyGoalMinutes) {

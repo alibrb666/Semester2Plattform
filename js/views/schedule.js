@@ -1,7 +1,7 @@
 import { State } from '../state.js';
 import { Storage } from '../storage.js';
 import { uuid, getWeekMonday, getWeekDays, getDayName, isoDate, isSameDay,
-  timeToMinutes, minutesToTime, snapMinutes, renderIcons, addDays, endOfDay } from '../util.js';
+  timeToMinutes, minutesToTime, snapMinutes, renderIcons, addDays, endOfDay, localeTag } from '../util.js';
 import { Modal } from '../components/modal.js';
 import { Toast } from '../components/toast.js';
 import { SessionTracker } from '../components/sessionTracker.js';
@@ -165,7 +165,7 @@ function _renderDayView(container) {
   const dateStr  = isoDate(dateObj);
   const isToday  = isSameDay(dateObj, new Date());
   const subjects = State.getSubjects();
-  const dayLabel = dateObj.toLocaleDateString('de-DE', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const dayLabel = dateObj.toLocaleDateString(localeTag(), { weekday:'long', day:'numeric', month:'long', year:'numeric' });
 
   // Compute compact time range from today's events
   const dayKey    = jsDateToDayKey(dateObj);
@@ -229,8 +229,8 @@ function _renderDayView(container) {
 
 /* ── Shared builders ───────────────────────────────────── */
 function _weekLabel(days) {
-  const fStr = days[0].toLocaleDateString('de-DE', { day:'numeric', month:'short' });
-  const lStr = days[6].toLocaleDateString('de-DE', { day:'numeric', month:'short', year:'numeric' });
+  const fStr = days[0].toLocaleDateString(localeTag(), { day:'numeric', month:'short' });
+  const lStr = days[6].toLocaleDateString(localeTag(), { day:'numeric', month:'short', year:'numeric' });
   return `${fStr} – ${lStr}`;
 }
 
@@ -441,7 +441,7 @@ function _updateScheduleSyncBar(container) {
   bar.style.display = 'flex';
   const n = cache.events?.length ?? prefs.eventCount ?? 0;
   const t = prefs.lastSyncedAt
-    ? new Date(prefs.lastSyncedAt).toLocaleString('de-DE', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+    ? new Date(prefs.lastSyncedAt).toLocaleString(localeTag(), { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
     : '—';
   const err = prefs.lastError ? ' · <span style="color:var(--danger)">Fehler beim Sync</span>' : '';
   const srcLabel = prefs.source === 'ics-file' ? 'Datei' : 'Live';
@@ -678,7 +678,7 @@ function openIcsDayDetailModal(icsId, subjects, container) {
   const durH       = Math.floor(durMs / 3600000);
   const durM       = Math.round((durMs % 3600000) / 60000);
   const durLabel   = durH > 0 ? (durM > 0 ? `${durH}h ${durM}m` : `${durH}h`) : `${durM}m`;
-  const dateLabel  = startDate.toLocaleDateString('de-DE', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const dateLabel  = startDate.toLocaleDateString(localeTag(), { weekday:'long', day:'numeric', month:'long', year:'numeric' });
   const timeLabel  = `${dateToHm(ev.startsAt)} – ${dateToHm(ev.endsAt)} (${durLabel})`;
 
   const body = `

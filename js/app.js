@@ -26,7 +26,6 @@ import * as ScheduleSync from './scheduleSync.js';
 import { t, setLanguage, setLanguageSilent, getLanguage, initialLanguage, LANGUAGES, translateDom } from './i18n.js';
 
 const USER_KEY = 'learn.user_id';
-const DEFAULT_ICS_URL = 'https://calendar.google.com/calendar/ical/b4a4464084327a2a90ac105b62cd75812d520f372be512c64711d5a3a4848151%40group.calendar.google.com/public/basic.ics';
 
 let _launchAppStarted = false;
 let _routerVisualListener = false;
@@ -122,8 +121,8 @@ const DEFAULT_STATE = {
   achievements: { longestStreak:0, totalHours:0 },
   todos: [],
   schedulePrefs: {
-    source: 'ics-url',
-    icsUrl: DEFAULT_ICS_URL,
+    source: 'manual',
+    icsUrl: '',
     icsFileName: null,
     lastSyncedAt: null,
     lastError: null,
@@ -138,7 +137,7 @@ async function boot() {
 
   if (savedUserId) {
     setActiveUser(savedUserId);
-    const cached = Storage.load();
+    const cached = Storage.load({ allowLegacy: false });
     const defaultBase = JSON.parse(JSON.stringify(DEFAULT_STATE));
     State.init(cached || defaultBase);
     // Apply cached language immediately so shell doesn't flash German
@@ -204,6 +203,9 @@ function showNameScreen() {
     updateUserAvatar(user);
     Sync.initOfflineHandling(user.id);
     screen.setAttribute('hidden', '');
+    // Remove auth inputs after successful login to prevent password-save prompts
+    // on unrelated save actions elsewhere in the app.
+    screen.innerHTML = '';
     launchApp();
     try {
       if (cached) await Sync.migrateLocalData(defaultBase, user.id);
@@ -255,11 +257,11 @@ function showNameScreen() {
           <div class="auth-form" id="profile-create-form">
             <div class="field">
               <label for="input-name">${t('username')}</label>
-              <input class="input" id="input-name" type="text" placeholder="Ali" maxlength="30" autocomplete="username" />
+              <input class="input" id="input-name" type="text" placeholder="Ali" maxlength="30" autocomplete="off" autocapitalize="off" spellcheck="false" />
             </div>
             <div class="field">
               <label for="input-pin">${t('pin')}</label>
-              <input class="input" id="input-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" placeholder="1234" />
+              <input class="input" id="input-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" placeholder="1234" />
             </div>
             <button class="btn btn-primary" id="btn-start" type="button">${hasProfiles ? t('addProfile') : t('createFirstProfile')}</button>
             ${hasProfiles ? `<button class="btn btn-ghost" id="btn-cancel-create" type="button">${t('cancel')}</button>` : ''}
@@ -278,7 +280,7 @@ function showNameScreen() {
               <div class="settings-row-label">${_esc(selected.name)}</div>
               <div class="field">
                 <label for="input-pin">${selected.pinHash ? t('pin') : t('createPin')}</label>
-                <input class="input" id="input-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="current-password" autofocus />
+                <input class="input" id="input-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" autofocus />
               </div>
               <button class="btn btn-primary" id="btn-unlock" type="button">${selected.pinHash ? t('unlock') : t('createPin')}</button>
             </div>

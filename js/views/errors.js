@@ -2,6 +2,7 @@ import { State } from '../state.js';
 import { uuid, formatDateShort, isReviewDue, reviewDates, renderIcons } from '../util.js';
 import { Modal } from '../components/modal.js';
 import { Toast } from '../components/toast.js';
+import { translateDom } from '../i18n.js';
 
 const CAT_LABELS = { concept:'Konzept', fluke:'Flüchtigkeit', calculation:'Rechnen', understanding:'Verständnis', time:'Zeit' };
 const CAT_BADGES = { concept:'badge-accent', fluke:'badge-warning', calculation:'badge-danger', understanding:'badge-muted', time:'badge-muted' };
@@ -125,6 +126,7 @@ export function renderErrors(container) {
     </div>`;
 
   renderIcons(container);
+  translateDom(container);
   renderPane();
 
   container.querySelector('#btn-new-error')?.addEventListener('click', () => openNewEntryModal(subjects, () => { _selectedId = null; renderPane(); }));
@@ -144,7 +146,7 @@ function renderDetail(detailEl, entry, subjects) {
       <div class="detail-meta">
         <span class="subject-tag ${entry.subjectId}" style="background:var(--subject-${entry.subjectId}22);color:var(--subject-${entry.subjectId})">${sub?.name||''}</span>
         <span class="badge ${CAT_BADGES[entry.category]||'badge-muted'}">${CAT_LABELS[entry.category]||entry.category}</span>
-        <span style="font-size:12px;color:var(--text-tertiary)">${new Date(entry.createdAt).toLocaleDateString('de-DE',{day:'numeric',month:'long',year:'numeric'})}</span>
+        <span style="font-size:12px;color:var(--text-tertiary)">${new Date(entry.createdAt).toLocaleDateString(undefined,{day:'numeric',month:'long',year:'numeric'})}</span>
         ${entry.repeated > 0 ? `<span class="badge badge-warning">${entry.repeated}× wiederholt</span>` : ''}
         ${due ? `<span class="badge badge-danger" style="animation:pulse-border 2s infinite">Wiederholung fällig</span>` : ''}
       </div>
@@ -162,12 +164,12 @@ function renderDetail(detailEl, entry, subjects) {
       ${entry.reviewedAt?.length ? `<div>
         <div class="detail-section-title">Wiederholt am</div>
         <div class="review-dates">
-          ${entry.reviewedAt.map(d=>`<span class="review-date-pill">${new Date(d).toLocaleDateString('de-DE',{day:'numeric',month:'short'})}</span>`).join('')}
+          ${entry.reviewedAt.map(d=>`<span class="review-date-pill">${new Date(d).toLocaleDateString(undefined,{day:'numeric',month:'short'})}</span>`).join('')}
         </div>
       </div>` : ''}
 
       ${nextDue ? `<div style="font-size:12px;color:var(--text-tertiary)">
-        Nächste Wiederholung: <strong style="color:var(--text-secondary)">${new Date(nextDue).toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long'})}</strong>
+        Nächste Wiederholung: <strong style="color:var(--text-secondary)">${new Date(nextDue).toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})}</strong>
       </div>` : ''}
 
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
@@ -178,6 +180,7 @@ function renderDetail(detailEl, entry, subjects) {
     </div>`;
 
   renderIcons(detailEl);
+  translateDom(detailEl);
 
   detailEl.querySelector('#detail-review')?.addEventListener('click', () => {
     const reviewed = [...(entry.reviewedAt||[]), new Date().toISOString()];

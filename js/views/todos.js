@@ -3,6 +3,7 @@ import { Storage } from '../storage.js';
 import { uuid, renderIcons } from '../util.js';
 import { Modal } from '../components/modal.js';
 import { Toast } from '../components/toast.js';
+import { translateDom } from '../i18n.js';
 
 let _filter = 'all';
 
@@ -29,6 +30,7 @@ export function renderTodos(container) {
     </div>`;
 
   renderIcons(container);
+  translateDom(container);
   _bindTodos(container, subjects);
 }
 
@@ -348,7 +350,7 @@ function _openTodoModal(todo, subjects, container) {
 
 /* ── Helpers ────────────────────────────────────────────── */
 function _today()      { return new Date().toISOString().slice(0, 10); }
-function _fmtDate(iso) { return new Date(iso + 'T12:00:00').toLocaleDateString('de-DE', { day:'numeric', month:'short' }); }
+function _fmtDate(iso) { return new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { day:'numeric', month:'short' }); }
 function _esc(s)       { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 export { _openTodoModal as openTodoModalFromDash };

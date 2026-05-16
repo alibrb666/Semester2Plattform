@@ -1,4 +1,4 @@
-import { addDays, isoDate, isSameDay, formatDateDE, formatDuration, groupByDay, sumDuration } from '../util.js';
+import { addDays, isoDate, isSameDay, formatDateDE, formatDuration, groupByDay, sumDuration, localeTag } from '../util.js';
 
 export function renderHeatmap(container, sessions, onDayClick) {
   const today = new Date();
@@ -35,7 +35,7 @@ export function renderHeatmap(container, sessions, onDayClick) {
     const first = week.find(d => d !== null);
     if (!first) return '';
     const m = first.getMonth();
-    if (m !== lastMonth) { lastMonth = m; return first.toLocaleDateString('de-DE', { month: 'short' }); }
+    if (m !== lastMonth) { lastMonth = m; return first.toLocaleDateString(localeTag(), { month: 'short' }); }
     return '';
   });
 
@@ -54,7 +54,7 @@ export function renderHeatmap(container, sessions, onDayClick) {
       const secs = sumDuration(byDay[key] || []);
       const level = secs === 0 ? 0 : secs < 3600 ? 1 : secs < 7200 ? 2 : secs < 10800 ? 3 : 4;
       const isToday = isSameDay(day, today);
-      const label = `${day.toLocaleDateString('de-DE', { day:'numeric', month:'long', year:'numeric' })} – ${secs > 0 ? formatDuration(secs) : 'kein Lerntag'}`;
+      const label = `${day.toLocaleDateString(localeTag(), { day:'numeric', month:'long', year:'numeric' })} – ${secs > 0 ? formatDuration(secs) : 'kein Lerntag'}`;
       gridHtml += `<div class="heatmap-cell${isToday?' today':''}" data-level="${level}" data-day="${key}" title="${label}" aria-label="${label}" role="button" tabindex="0"></div>`;
     });
     gridHtml += '</div>';

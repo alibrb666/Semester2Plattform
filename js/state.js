@@ -1,7 +1,6 @@
 import { Storage } from './storage.js';
 import * as Sync from './sync.js';
 
-const DEFAULT_ICS_URL = 'https://calendar.google.com/calendar/ical/b4a4464084327a2a90ac105b62cd75812d520f372be512c64711d5a3a4848151%40group.calendar.google.com/public/basic.ics';
 
 let _state = {};
 let _userId = null;
@@ -148,7 +147,7 @@ export const State = {
     this.set({
       ...st,
       schedulePrefs: {
-        source: 'ics-url', icsUrl: DEFAULT_ICS_URL, icsFileName: null,
+        source: 'manual', icsUrl: '', icsFileName: null,
         lastSyncedAt: null, lastError: null, eventCount: 0, syncIntervalMinutes: 60,
         ...(st.schedulePrefs || {}),
         ...patch

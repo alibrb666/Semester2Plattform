@@ -1,7 +1,7 @@
 import { State } from '../state.js';
 import { Storage } from '../storage.js';
 import { Theme } from '../theme.js';
-import { renderIcons, setPhases, applySubjectColors } from '../util.js';
+import { renderIcons, setPhases, applySubjectColors, localeTag } from '../util.js';
 import { Toast } from '../components/toast.js';
 import { Modal } from '../components/modal.js';
 import * as scheduleSync from '../scheduleSync.js';
@@ -71,7 +71,7 @@ export function renderSettings(container) {
               <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary)">
                 <div style="width:10px;height:10px;border-radius:50%;background:${s.colorHex||`var(--subject-${s.id})`};flex-shrink:0"></div>
                 <span style="flex:1">${s.name}</span>
-                <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-tertiary)">${s.examDate ? new Date(s.examDate+'T12:00:00').toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'}) : '—'}</span>
+                <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-tertiary)">${s.examDate ? new Date(s.examDate+'T12:00:00').toLocaleDateString(localeTag(),{day:'numeric',month:'short',year:'numeric'}) : '—'}</span>
               </div>`).join('')}
           </div>
         </section>
@@ -269,7 +269,7 @@ function _buildSubjectCards(subjects) {
   return subjects.map(s => {
     const color = s.colorHex || `var(--subject-${s.id})`;
     const dateLabel = s.examDate
-      ? new Date(s.examDate + 'T12:00:00').toLocaleDateString('de-DE', { day:'numeric', month:'long', year:'numeric' })
+      ? new Date(s.examDate + 'T12:00:00').toLocaleDateString(localeTag(), { day:'numeric', month:'long', year:'numeric' })
       : 'Kein Datum';
     return `
       <div class="subject-edit-card">
@@ -519,7 +519,7 @@ function _bindSettings(container, subjects) {
     }
     const n = cache.events?.length ?? sp.eventCount ?? 0;
     const t = sp.lastSyncedAt
-      ? new Date(sp.lastSyncedAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+      ? new Date(sp.lastSyncedAt).toLocaleString(undefined, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
       : '—';
     el.textContent = `Zuletzt synchronisiert: ${t} · ${n} Termine`;
   }
@@ -656,7 +656,7 @@ function _bindSettings(container, subjects) {
     const sp = State.get().schedulePrefs || {};
     if (!sp.lastSyncedAt) { el.textContent = 'Noch nie synchronisiert'; return; }
     const d = new Date(sp.lastSyncedAt);
-    el.textContent = `Zuletzt: ${d.toLocaleDateString('de-DE')} um ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} · ${sp.eventCount || 0} Termine`;
+    el.textContent = `Zuletzt: ${d.toLocaleDateString(localeTag())} um ${d.toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' })} · ${sp.eventCount || 0} Termine`;
   }
   updateLastSyncLabel();
 

@@ -1,6 +1,5 @@
 const KEY = 'learn.v1';
 const CURRENT_VERSION = 2;
-const DEFAULT_ICS_URL = 'https://calendar.google.com/calendar/ical/b4a4464084327a2a90ac105b62cd75812d520f372be512c64711d5a3a4848151%40group.calendar.google.com/public/basic.ics';
 let _saveTimer = null;
 let _userId = null;
 
@@ -69,7 +68,7 @@ export const Storage = {
       data.version = 1;
       data.settings = { name:'Lukas', theme:'dark', sidebarCollapsed:false,
         dailyGoalMinutes:240, weeklyGoals:{klr:360,math:390,prog:360,kbs:300},
-        soundEnabled:true, notificationsEnabled:false, streakFreezeUsed:false, ...data.settings };
+        soundEnabled:true, notificationsEnabled:false, streakFreezeUsed:false, language:'de', ...data.settings };
       data.subjects    = data.subjects    || [];
       data.sessions    = data.sessions    || [];
       data.scheduleBlocks = data.scheduleBlocks || [];
@@ -126,14 +125,15 @@ export const Storage = {
     }
     if (!data.schedulePrefs) {
       data.schedulePrefs = {
-        source: 'ics-url',
-        icsUrl: DEFAULT_ICS_URL,
+        source: 'manual',
+        icsUrl: '',
         icsFileName: null,
         lastSyncedAt: null,
         lastError: null,
         eventCount: 0
       };
     }
+    data.settings = { language: 'de', ...(data.settings || {}) };
     return data;
   }
 };

@@ -1,7 +1,8 @@
 import { State } from '../state.js';
-import { formatDuration, formatDateShort, isSameDay, renderIcons, sumDuration } from '../util.js';
+import { formatDuration, formatDateShort, isSameDay, renderIcons, sumDuration, localeTag } from '../util.js';
 import { Modal } from '../components/modal.js';
 import { Toast } from '../components/toast.js';
+import { translateDom } from '../i18n.js';
 
 /* Trash for undo-delete (last 10 items) */
 const _trash = [];
@@ -45,7 +46,7 @@ export function renderSessions(container) {
       const d   = new Date(s.startedAt);
       const key = isSameDay(d, new Date()) ? 'Heute'
         : isSameDay(d, new Date(Date.now() - 86400000)) ? 'Gestern'
-        : d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        : d.toLocaleDateString(localeTag(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
       (groups[key] = groups[key] || []).push(s);
     });
     return groups;
@@ -89,7 +90,7 @@ export function renderSessions(container) {
       html += `<div class="sessions-group-header">${day} · ${formatDuration(dayTotal)}</div>`;
       daySess.forEach(s => {
         const sub   = subjects.find(x => x.id === s.subjectId);
-        const t     = new Date(s.startedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        const t     = new Date(s.startedAt).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' });
         const tsum  = taskSummary(s);
         const demo  = s.isDemo ? '<span class="badge badge-warning" style="font-size:10px">Demo</span>' : '';
         html += `<div class="session-row" data-session-id="${s.id}" role="button" tabindex="0"
@@ -152,6 +153,7 @@ export function renderSessions(container) {
     </div>`;
 
   renderIcons(container);
+  translateDom(container);
   const listEl    = container.querySelector('#sessions-list');
   const summaryEl = container.querySelector('#sessions-summary');
 
@@ -246,8 +248,8 @@ function _showDetailModal(s, sub, d, container, onRefresh) {
       <div class="field">
         <label>Datum & Uhrzeit</label>
         <div style="font-size:14px;color:var(--text-secondary)">
-          ${d.toLocaleDateString('de-DE', { weekday:'long', day:'numeric', month:'long', year:'numeric' })} ·
-          ${d.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' })}
+          ${d.toLocaleDateString(localeTag(), { weekday:'long', day:'numeric', month:'long', year:'numeric' })} ·
+          ${d.toLocaleTimeString(localeTag(), { hour:'2-digit', minute:'2-digit' })}
         </div>
       </div>
       ${session.note ? `<div class="field"><label>Notiz</label>
@@ -265,8 +267,8 @@ function _showDetailModal(s, sub, d, container, onRefresh) {
               <summary>Zeitverlauf (${segs.length})</summary>
               <div class="task-seg-list">
                 ${segs.map(sg => `<div class="task-seg-row">
-                  <span>${formatDateShort(sg.startedAt)} ${new Date(sg.startedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
-                  <span>→ ${new Date(sg.endedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span>${formatDateShort(sg.startedAt)} ${new Date(sg.startedAt).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span>→ ${new Date(sg.endedAt).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' })}</span>
                   <span class="num-display">${formatDuration(Math.round(sg.seconds || 0))}</span>
                 </div>`).join('')}
               </div>

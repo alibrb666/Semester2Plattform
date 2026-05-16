@@ -8,6 +8,7 @@ import { Modal } from '../components/modal.js';
 import { Toast } from '../components/toast.js';
 import { Storage } from '../storage.js';
 import { openTodoModalFromDash } from './todos.js';
+import { translateDom } from '../i18n.js';
 
 export function renderDashboard(container) {
   const state    = State.get();
@@ -190,6 +191,7 @@ export function renderDashboard(container) {
     </div>`;
 
   renderIcons(container);
+  translateDom(container);
 
   container.querySelector('#demo-banner-clear')?.addEventListener('click', () => {
     if (!State.hasDemoEntries()) return;
@@ -211,7 +213,7 @@ export function renderDashboard(container) {
     const daySess = sessions.filter(s => s.startedAt.startsWith(dayKey));
     if (!daySess.length) return;
     Modal.open({
-      title: new Date(dayKey).toLocaleDateString('de-DE', { weekday:'long', day:'numeric', month:'long' }),
+      title: new Date(dayKey).toLocaleDateString(undefined, { weekday:'long', day:'numeric', month:'long' }),
       body: `<div class="session-list">${buildRecentSessions(daySess, subjects, daySess.length)}</div>`
     });
     renderIcons(document.querySelector('.modal'));
@@ -238,7 +240,7 @@ export function renderDashboard(container) {
               <div class="session-color-bar" style="background:var(--subject-${sess.subjectId})"></div>
               <div class="session-info">
                 <div class="session-note" style="white-space:normal;overflow:visible">${sess.note || 'Keine Notiz'}</div>
-                <div class="session-subject">${new Date(sess.startedAt).toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long'})} · ${new Date(sess.startedAt).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</div>
+                <div class="session-subject">${new Date(sess.startedAt).toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})} · ${new Date(sess.startedAt).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</div>
               </div>
               <div class="session-meta">
                 <div class="session-duration">${formatDuration(sess.durationSeconds)}</div>
@@ -330,7 +332,7 @@ function _buildDashTodos(todos, subjects) {
         if (t.dueDate < todayStr)         { dueLabel = 'Überfällig'; dueClass = 'overdue'; }
         else if (t.dueDate === todayStr)  { dueLabel = 'heute'; dueClass = 'today'; }
         else if (t.dueDate === tomorrowStr){ dueLabel = 'morgen'; dueClass = 'soon'; }
-        else { dueLabel = new Date(t.dueDate+'T12:00:00').toLocaleDateString('de-DE',{day:'numeric',month:'short'}); dueClass = 'soon'; }
+        else { dueLabel = new Date(t.dueDate+'T12:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short'}); dueClass = 'soon'; }
       }
       return `<div class="dash-todo-item" data-todo-id="${t.id}" role="button" tabindex="0">
         <div class="dash-todo-check todo-checkbox" data-todo-check="${t.id}" role="checkbox" aria-checked="false" tabindex="0"></div>
@@ -354,7 +356,7 @@ function buildRecentSessions(sessions, subjects, limit = 5) {
   return recent.map(s => {
     const sub = subjects.find(x => x.id === s.subjectId);
     const date = new Date(s.startedAt);
-    const dateStr = isSameDay(date, new Date()) ? 'Heute' : isSameDay(date, new Date(Date.now()-86400000)) ? 'Gestern' : date.toLocaleDateString('de-DE',{day:'numeric',month:'short'});
+    const dateStr = isSameDay(date, new Date()) ? 'Heute' : isSameDay(date, new Date(Date.now()-86400000)) ? 'Gestern' : date.toLocaleDateString(undefined,{day:'numeric',month:'short'});
     return `<div class="session-item" data-session-id="${s.id}" role="button" tabindex="0">
       <div class="session-color-bar" style="background:var(--subject-${s.subjectId})"></div>
       <div class="session-info">
