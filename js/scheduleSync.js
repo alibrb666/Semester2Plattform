@@ -86,6 +86,11 @@ const CORS_PROXIES = [
   url => `https://cors-anywhere.herokuapp.com/${url}`,
 ];
 
+function sameOriginProxyUrl(target) {
+  const base = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/');
+  return `${base}api/ics?url=${encodeURIComponent(target)}`;
+}
+
 export function normalizeIcsUrl(rawUrl) {
   const raw = String(rawUrl || '').trim();
   if (!raw) return '';
@@ -103,7 +108,16 @@ export function normalizeIcsUrl(rawUrl) {
 
 export async function fetchIcsText(url) {
   const fetchUrl = normalizeIcsUrl(url);
-  // 1. Direkter Fetch
+  // 1) Same-origin proxy endpoint (best option against CORS in browser)
+  try {
+    const r = await fetch(sameOriginProxyUrl(fetchUrl), { cache: 'no-store' });
+    if (r.ok) {
+      const text = await r.text();
+      if (text.includes('BEGIN:VCALENDAR')) return text;
+    }
+  } catch (_) {}
+
+  // 2) Direct fetch
   try {
     const r = await fetch(fetchUrl, { mode: 'cors', cache: 'no-store' });
     if (r.ok) {
@@ -112,7 +126,7 @@ export async function fetchIcsText(url) {
     }
   } catch (_) {}
 
-  // 2. Proxy-Fallback-Kette
+  // 3) Public proxy fallback chain
   for (const proxyFn of CORS_PROXIES) {
     try {
       const r = await fetch(proxyFn(fetchUrl), {
