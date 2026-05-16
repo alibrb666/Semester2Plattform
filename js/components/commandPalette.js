@@ -3,6 +3,7 @@ import { Router } from '../router.js';
 import { Theme } from '../theme.js';
 import { fuzzyMatch, renderIcons } from '../util.js';
 import { SessionTracker } from './sessionTracker.js';
+import { translateDom } from '../i18n.js';
 
 const VIEWS = [
   { id:'dashboard',   label:'Dashboard öffnen',      icon:'layout-dashboard', action: ()=>Router.navigate('dashboard') },
@@ -70,6 +71,7 @@ export const CommandPalette = {
 
     backdrop.addEventListener('click', e => { if (e.target === backdrop) this.close(); });
     document.body.appendChild(backdrop);
+    translateDom(backdrop);
     renderIcons(backdrop);
     _el = backdrop;
 
@@ -103,6 +105,7 @@ export const CommandPalette = {
 
     if (!filtered.length) {
       list.innerHTML = `<div class="cmd-empty">Keine Ergebnisse für "${q}"</div>`;
+      translateDom(list);
       return;
     }
 
@@ -117,6 +120,7 @@ export const CommandPalette = {
     }
     filtered.forEach(item => { html += this._itemHtml(item); });
     list.innerHTML = html;
+    translateDom(list);
 
     list.querySelectorAll('.cmd-item').forEach((el, i) => {
       el.addEventListener('mouseenter', () => { _selected = i; this._highlight(); });

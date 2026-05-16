@@ -52,21 +52,21 @@ export const Router = {
         renderIcons(view);
       } catch (err) {
         console.error('[Router] render failed:', name, err);
-        view.innerHTML = `<div class=”view” style=”padding:24px;max-width:560px”>
-          <div class=”view-title” style=”color:var(--danger)”>Ansicht konnte nicht geladen werden</div>
-          <p style=”color:var(--text-secondary);font-size:14px;margin-top:12px;line-height:1.5”>
-            Route „${name}” ist fehlgeschlagen: <code style=”font-size:12px;word-break:break-all”>${String(err?.message || err)}</code>
+        view.innerHTML = `<div class="view" style="padding:24px;max-width:560px">
+          <div class="view-title" style="color:var(--danger)">Ansicht konnte nicht geladen werden</div>
+          <p style="color:var(--text-secondary);font-size:14px;margin-top:12px;line-height:1.5">
+            Route "${name}" ist fehlgeschlagen: <code style="font-size:12px;word-break:break-all">${String(err?.message || err)}</code>
           </p>
-          <p style=”color:var(--text-tertiary);font-size:13px;margin-top:16px”>
+          <p style="color:var(--text-tertiary);font-size:13px;margin-top:16px">
             Bitte die Browser-Konsole öffnen (Safari: Entwickler → Konsole anzeigen) und die Seite mit <strong>⌘R</strong> neu laden.
           </p>
         </div>`;
       }
     } else {
       console.error('[Router] missing render for route:', name, 'registered:', Object.keys(_routes));
-      view.innerHTML = `<div class=”view” style=”padding:24px;max-width:560px”>
-        <div class=”view-title” style=”color:var(--danger)”>Interner Router-Fehler</div>
-        <p style=”color:var(--text-secondary);font-size:14px;margin-top:12px”>Keine Render-Funktion für „${name}”.</p>
+      view.innerHTML = `<div class="view" style="padding:24px;max-width:560px">
+        <div class="view-title" style="color:var(--danger)">Interner Router-Fehler</div>
+        <p style="color:var(--text-secondary);font-size:14px;margin-top:12px">Keine Render-Funktion für "${name}".</p>
       </div>`;
     }
     _listeners.forEach(fn => fn(name));

@@ -19,13 +19,14 @@ function getQueue() {
 function saveQueue(q) {
   try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch {}
 }
-function enqueue(entry) {
+function enqueue(entry, userId) {
   const q = getQueue();
-  q.push({ ...entry, qid: crypto.randomUUID(), ts: Date.now() });
+  q.push({ ...entry, userId, qid: crypto.randomUUID(), ts: Date.now() });
   saveQueue(q);
 }
 
 async function processEntry(entry, userId) {
+  userId = entry.userId || userId;
   const { type, data } = entry;
   switch (type) {
     case 'upsert-session':     await supabase.from('sessions').upsert(sessionToRow(data, userId)); break;
@@ -51,6 +52,10 @@ export async function flushQueue(userId) {
   if (!q.length) return;
   const remaining = [];
   for (const entry of q) {
+    if (entry.userId && entry.userId !== userId) {
+      remaining.push(entry);
+      continue;
+    }
     try { await processEntry(entry, userId); }
     catch { remaining.push(entry); }
   }
@@ -345,13 +350,13 @@ export async function loadAllData(userId, defaultState) {
 /* ── Individual push operations ────────────────────────────── */
 async function push(type, data, userId) {
   if (!userId) return;
-  if (!navigator.onLine) { enqueue({ type, data }); return; }
+  if (!navigator.onLine) { enqueue({ type, data }, userId); return; }
   setSyncing(true);
   try {
     await processEntry({ type, data }, userId);
   } catch (err) {
     console.warn(`[Sync] ${type} failed, queuing:`, err.message);
-    enqueue({ type, data });
+    enqueue({ type, data }, userId);
   } finally {
     setSyncing(false);
   }

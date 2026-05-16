@@ -3,6 +3,7 @@ import { uuid, formatDuration, playSound, renderIcons } from '../util.js';
 import { Modal } from './modal.js';
 import { Toast } from './toast.js';
 import { launchConfetti } from './confetti.js';
+import { translateDom } from '../i18n.js';
 
 const STORAGE_KEY = 'learn.active_session';
 
@@ -11,11 +12,22 @@ let _notifTimer = null;
 
 /* ── Persistence ──────────────────────────────────────────────── */
 function loadActive() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; }
+  try {
+    const uid = State.getUserId();
+    const userKey = uid ? `${STORAGE_KEY}:${uid}` : STORAGE_KEY;
+    const legacy = uid ? localStorage.getItem(STORAGE_KEY) : null;
+    if (legacy && !localStorage.getItem(userKey)) {
+      localStorage.setItem(userKey, legacy);
+      localStorage.removeItem(STORAGE_KEY);
+    }
+    return JSON.parse(localStorage.getItem(userKey));
+  } catch { return null; }
 }
 function saveActive(s) {
-  if (s) localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-  else   localStorage.removeItem(STORAGE_KEY);
+  const uid = State.getUserId();
+  const userKey = uid ? `${STORAGE_KEY}:${uid}` : STORAGE_KEY;
+  if (s) localStorage.setItem(userKey, JSON.stringify(s));
+  else   localStorage.removeItem(userKey);
 }
 
 /* ── Time helpers ─────────────────────────────────────────────── */
@@ -554,6 +566,7 @@ export const SessionTracker = {
           </div>
         </div>`;
     }
+    translateDom(widget);
     renderIcons(widget);
   },
 

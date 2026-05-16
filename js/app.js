@@ -62,7 +62,7 @@ function refreshCurrentView() {
   } catch (e) {
     console.error('[refreshCurrentView]', route, e);
     view.innerHTML = `<div class="view" style="padding:24px;max-width:520px">
-      <div style="color:var(--danger);font-weight:600">Ansicht „${route}" fehlgeschlagen</div>
+      <div style="color:var(--danger);font-weight:600">Ansicht "${route}" fehlgeschlagen</div>
       <p style="color:var(--text-secondary);font-size:14px;margin-top:12px">${String(e?.message || e)}</p>
     </div>`;
   }

@@ -2,6 +2,7 @@ import { State } from '../state.js';
 import { Router } from '../router.js';
 import { uuid, renderIcons } from '../util.js';
 import { Toast } from './toast.js';
+import { translateDom } from '../i18n.js';
 
 let _el = null;
 
@@ -114,6 +115,7 @@ export const QuickCapture = {
         currentType = tab.dataset.type;
         backdrop.querySelectorAll('.qc-tab').forEach(t => t.classList.toggle('active', t === tab));
         backdrop.querySelector('#qc-fields').innerHTML = buildFields(currentType, subjects);
+        translateDom(backdrop.querySelector('#qc-fields'));
         backdrop.querySelector('#qc-fields input, #qc-fields textarea')?.focus();
       });
     });
@@ -123,6 +125,7 @@ export const QuickCapture = {
     backdrop.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
 
     document.body.appendChild(backdrop);
+    translateDom(backdrop);
     renderIcons(backdrop);
     backdrop.querySelector('input, textarea')?.focus();
     _el = backdrop;
