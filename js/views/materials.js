@@ -447,7 +447,19 @@ function openAssistantChat(materials, mocks, subjects) {
     ? 'Select a PDF source and ask your question.'
     : 'No PDF found. Upload PDFs in Materials or Mocks first.');
 
-  const fallbackModels = ['qwen/qwen3.6-flash'];
+  const fallbackModels = [
+    'qwen/qwen3.6-flash',
+    'qwen/qwen3.5-flash',
+    'openai/gpt-5.4',
+    'openai/gpt-5.4-mini',
+    'openai/gpt-5.5',
+    'anthropic/claude-opus-4.7',
+    'anthropic/claude-opus-4.6-fast',
+    'google/gemini-3.1-flash-lite',
+    'mistralai/mistral-medium-3.5',
+    'deepseek/deepseek-v4-pro',
+    'deepseek/deepseek-v4-flash'
+  ];
   fetch('/api/ai/models')
     .then(r => r.json())
     .then(data => {
