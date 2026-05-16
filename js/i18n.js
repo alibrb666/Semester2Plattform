@@ -17,6 +17,10 @@ const DICT = {
     unlock: 'Entsperren',
     cancel: 'Abbrechen',
     language: 'Sprache',
+    timezone: 'Zeitzone',
+    timezoneSub: 'Für Begrüßung und angezeigte Uhrzeit',
+    systemDefault: 'Systemstandard',
+    timezoneSaved: 'Zeitzone gespeichert',
     languageSub: 'Deutsch, Englisch oder Französisch',
     profile: 'Profil',
     profileNameSub: 'Wird in der Begrüßung angezeigt',
@@ -54,7 +58,15 @@ const DICT = {
     goodEvening: 'Guten Abend',
     phase1: 'Phase 1 – Stoff aufbauen',
     phase2: 'Phase 2 – Vertiefung',
-    phase3: 'Phase 3 – Klausurmodus'
+    phase3: 'Phase 3 – Klausurmodus',
+    grade: 'Note',
+    resultPct: 'Ergebnis (%)',
+    target92: 'Ziel (92%)',
+    noMocksYet: 'Noch keine Probeklausuren',
+    noMocksSubject: 'Noch keine Mocks für dieses Fach.',
+    addFirstMockHint: 'Trage deine ersten Ergebnisse ein, um deinen Fortschritt zu tracken.',
+    earnedPoints: 'Erreichte Punkte',
+    maxPoints: 'Maximalpunkte'
   },
   en: {
     appName: 'Learning Platform',
@@ -72,6 +84,10 @@ const DICT = {
     unlock: 'Unlock',
     cancel: 'Cancel',
     language: 'Language',
+    timezone: 'Timezone',
+    timezoneSub: 'Used for greeting and shown clock',
+    systemDefault: 'System default',
+    timezoneSaved: 'Timezone saved',
     languageSub: 'German, English or French',
     profile: 'Profile',
     profileNameSub: 'Shown in the greeting',
@@ -109,7 +125,15 @@ const DICT = {
     goodEvening: 'Good evening',
     phase1: 'Phase 1 – Build foundations',
     phase2: 'Phase 2 – Deepen',
-    phase3: 'Phase 3 – Exam mode'
+    phase3: 'Phase 3 – Exam mode',
+    grade: 'Grade',
+    resultPct: 'Result (%)',
+    target92: 'Target (92%)',
+    noMocksYet: 'No mock exams yet',
+    noMocksSubject: 'No mocks for this subject yet.',
+    addFirstMockHint: 'Add your first results to track your progress.',
+    earnedPoints: 'Points earned',
+    maxPoints: 'Maximum points'
   },
   fr: {
     appName: 'Plateforme d’apprentissage',
@@ -127,6 +151,10 @@ const DICT = {
     unlock: 'Déverrouiller',
     cancel: 'Annuler',
     language: 'Langue',
+    timezone: 'Fuseau horaire',
+    timezoneSub: 'Utilisé pour le message d’accueil et l’horloge affichée',
+    systemDefault: 'Valeur système',
+    timezoneSaved: 'Fuseau horaire enregistré',
     languageSub: 'Allemand, anglais ou français',
     profile: 'Profil',
     profileNameSub: 'Affiché dans le message d’accueil',
@@ -164,7 +192,15 @@ const DICT = {
     goodEvening: 'Bonsoir',
     phase1: 'Phase 1 – Construire les bases',
     phase2: 'Phase 2 – Approfondir',
-    phase3: 'Phase 3 – Mode examen'
+    phase3: 'Phase 3 – Mode examen',
+    grade: 'Note',
+    resultPct: 'Résultat (%)',
+    target92: 'Objectif (92%)',
+    noMocksYet: 'Aucun examen blanc pour le moment',
+    noMocksSubject: 'Aucun examen blanc pour cette matière.',
+    addFirstMockHint: 'Ajoute tes premiers résultats pour suivre ta progression.',
+    earnedPoints: 'Points obtenus',
+    maxPoints: 'Points maximum'
   }
 };
 
@@ -369,6 +405,7 @@ const PHRASES = {
     'Notiz gespeichert': 'Note saved',
     'Todo gespeichert': 'Todo saved',
     'Mock gespeichert': 'Mock saved',
+    'Mock gelöscht': 'Mock deleted',
     'Gesamt': 'Total',
     'Fortsetzen': 'Continue',
     'Verwerfen': 'Discard',
@@ -471,6 +508,22 @@ const PHRASES = {
     'Phase 1 – Stoff aufbauen': 'Phase 1 – Build foundations',
     'Phase 2 – Vertiefung': 'Phase 2 – Deepen',
     'Phase 3 – Klausurmodus': 'Phase 3 – Exam mode'
+    ,
+    'Noch keine Sessions': 'No sessions yet',
+    'Noch keine Session heute': 'No session today yet',
+    'Zeit für den Wochenrückblick': 'Time for the weekly review',
+    'Reflektiere die vergangene Woche und plane die nächste.': 'Reflect on the past week and plan the next.',
+    'Wochenrückblick': 'Weekly review',
+    'Welche 3 Lücken nächste Woche schließen?': 'Which 3 gaps will you close next week?',
+    'Wochenrückblick gespeichert': 'Weekly review saved',
+    'Demo-Daten entfernt': 'Demo data removed',
+    'Keine Demo-Daten': 'No demo data',
+    'Es sind keine Demo-Einträge vorhanden.': 'No demo entries available.',
+    'Noch nie synchronisiert': 'Never synced',
+    'Kein Datum': 'No date',
+    'Name gespeichert': 'Name saved',
+    'Sprache gespeichert': 'Language saved',
+    'Tagesziel gespeichert': 'Daily goal saved'
   },
   fr: {
     'Einstellungen': 'Paramètres',
@@ -671,6 +724,7 @@ const PHRASES = {
     'Notiz gespeichert': 'Note enregistrée',
     'Todo gespeichert': 'Tâche enregistrée',
     'Mock gespeichert': 'Examen blanc enregistré',
+    'Mock gelöscht': 'Examen blanc supprimé',
     'Gesamt': 'Total',
     'Fortsetzen': 'Continuer',
     'Verwerfen': 'Rejeter',
@@ -773,6 +827,22 @@ const PHRASES = {
     'Phase 1 – Stoff aufbauen': 'Phase 1 – Construire les bases',
     'Phase 2 – Vertiefung': 'Phase 2 – Approfondir',
     'Phase 3 – Klausurmodus': 'Phase 3 – Mode examen'
+    ,
+    'Noch keine Sessions': 'Aucune session pour l’instant',
+    'Noch keine Session heute': 'Aucune session aujourd’hui',
+    'Zeit für den Wochenrückblick': 'C’est l’heure du bilan hebdomadaire',
+    'Reflektiere die vergangene Woche und plane die nächste.': 'Réfléchis à la semaine passée et planifie la prochaine.',
+    'Wochenrückblick': 'Bilan hebdomadaire',
+    'Welche 3 Lücken nächste Woche schließen?': 'Quelles 3 lacunes combler la semaine prochaine ?',
+    'Wochenrückblick gespeichert': 'Bilan hebdomadaire enregistré',
+    'Demo-Daten entfernt': 'Données démo supprimées',
+    'Keine Demo-Daten': 'Aucune donnée démo',
+    'Es sind keine Demo-Einträge vorhanden.': 'Aucune entrée démo disponible.',
+    'Noch nie synchronisiert': 'Jamais synchronisé',
+    'Kein Datum': 'Aucune date',
+    'Name gespeichert': 'Nom enregistré',
+    'Sprache gespeichert': 'Langue enregistrée',
+    'Tagesziel gespeichert': 'Objectif quotidien enregistré'
   }
 };
 

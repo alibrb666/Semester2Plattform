@@ -40,6 +40,15 @@ export function renderSettings(container) {
           </div>
           <div class="settings-row">
             <div>
+              <div class="settings-row-label">${t('timezone')}</div>
+              <div class="settings-row-sub">${t('timezoneSub')}</div>
+            </div>
+            <select class="select" id="set-timezone" style="max-width:200px">
+              ${_timezoneOptions(settings.timezoneOffset || '')}
+            </select>
+          </div>
+          <div class="settings-row">
+            <div>
               <div class="settings-row-label">Tagesziel</div>
               <div class="settings-row-sub">Lernzeit pro Tag in Stunden</div>
             </div>
@@ -326,6 +335,19 @@ function _slugify(name) {
   return slug || 's' + Date.now().toString(36);
 }
 
+function _timezoneOptions(selected) {
+  const list = [''];
+  for (let h = -12; h <= 14; h++) {
+    const sign = h >= 0 ? '+' : '-';
+    const hh = String(Math.abs(h)).padStart(2, '0');
+    list.push(`${sign}${hh}:00`);
+  }
+  return list.map(v => {
+    const label = v ? `GMT${v}` : t('systemDefault');
+    return `<option value="${v}" ${v === selected ? 'selected' : ''}>${label}</option>`;
+  }).join('');
+}
+
 function _esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function _bindSettings(container, subjects) {
@@ -343,6 +365,15 @@ function _bindSettings(container, subjects) {
     setLanguage(language);
     Storage.saveNow(State.get());
     Toast.success('Sprache gespeichert');
+    renderSettings(container);
+  });
+  container.querySelector('#set-timezone')?.addEventListener('change', e => {
+    const timezoneOffset = e.target.value || '';
+    State.updateSettings({ timezoneOffset });
+    localStorage.setItem('learn.tz_offset', timezoneOffset);
+    Toast.success(t('timezoneSaved'));
+    Storage.saveNow(State.get());
+    document.dispatchEvent(new CustomEvent('data:changed'));
     renderSettings(container);
   });
   container.querySelector('#set-daily')?.addEventListener('blur', e => {

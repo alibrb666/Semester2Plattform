@@ -35,23 +35,35 @@ export function localeTag() {
 }
 
 export function formatDateDE(date) {
-  const d = toDate(date);
-  return d.toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const d = toTargetDate(date);
+  return d.toLocaleDateString(locale(), {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    ...(hasOffset() ? { timeZone: 'UTC' } : {})
+  });
 }
 
 export function formatDateShort(date) {
-  const d = toDate(date);
-  return d.toLocaleDateString(locale(), { day: 'numeric', month: 'short' });
+  const d = toTargetDate(date);
+  return d.toLocaleDateString(locale(), {
+    day: 'numeric', month: 'short',
+    ...(hasOffset() ? { timeZone: 'UTC' } : {})
+  });
 }
 
 export function formatDateFull(date) {
-  const d = toDate(date);
-  return d.toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' });
+  const d = toTargetDate(date);
+  return d.toLocaleDateString(locale(), {
+    day: 'numeric', month: 'long', year: 'numeric',
+    ...(hasOffset() ? { timeZone: 'UTC' } : {})
+  });
 }
 
 export function formatTime(date) {
-  const d = toDate(date);
-  return d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
+  const d = toTargetDate(date);
+  return d.toLocaleTimeString(locale(), {
+    hour: '2-digit', minute: '2-digit',
+    ...(hasOffset() ? { timeZone: 'UTC' } : {})
+  });
 }
 
 function toDate(v) {
@@ -59,13 +71,44 @@ function toDate(v) {
   return new Date(v);
 }
 
+function getUtcOffsetString() {
+  const tz = localStorage.getItem('learn.tz_offset');
+  return tz && /^[-+]\d{2}:\d{2}$/.test(tz) ? tz : null;
+}
+
+function parseOffsetMinutes(offset) {
+  if (!offset) return null;
+  const m = /^([+-])(\d{2}):(\d{2})$/.exec(offset);
+  if (!m) return null;
+  const sign = m[1] === '-' ? -1 : 1;
+  return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3], 10));
+}
+
+function hasOffset() {
+  return !!getUtcOffsetString();
+}
+
+function toTargetDate(v) {
+  const d = toDate(v);
+  const offset = getUtcOffsetString();
+  const mins = parseOffsetMinutes(offset);
+  if (mins == null) return d;
+  const utcMs = d.getTime() + d.getTimezoneOffset() * 60000;
+  return new Date(utcMs + mins * 60000);
+}
+
 export function greeting(name) {
-  const h = new Date().getHours();
+  const now = toTargetDate(new Date());
+  const h = hasOffset() ? now.getUTCHours() : now.getHours();
   let g;
   if (h < 12) g = t('goodMorning');
   else if (h < 18) g = t('goodAfternoon');
   else g = t('goodEvening');
   return `${g}, ${name || 'Lukas'}`;
+}
+
+export function currentClock() {
+  return formatTime(new Date());
 }
 
 export function isSameDay(a, b) {

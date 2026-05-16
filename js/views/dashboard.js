@@ -1,7 +1,7 @@
 import { State } from '../state.js';
 import { greeting, formatDateDE, getPhase, getStreak, getTodaySessions, getWeekSessions,
   getWeekMonday, getSubjectSessions, sumDuration, formatDuration, daysUntil,
-  isSameDay, isReviewDue, groupByDay, renderIcons, uuid, addDays } from '../util.js';
+  isSameDay, isReviewDue, groupByDay, renderIcons, uuid, addDays, currentClock } from '../util.js';
 import { SessionTracker } from '../components/sessionTracker.js';
 import { renderHeatmap } from '../components/heatmap.js';
 import { Modal } from '../components/modal.js';
@@ -41,6 +41,7 @@ export function renderDashboard(container) {
 
   const todos         = State.getTodos();
   const showDemoBanner = State.hasDemoEntries();
+  const tz = settings.timezoneOffset || '';
 
   container.innerHTML = `
     <div class="dashboard-view view">
@@ -63,6 +64,7 @@ export function renderDashboard(container) {
         <h1 class="hero-greeting">${greeting(settings.name)}</h1>
         <div class="hero-meta">
           <span class="hero-date">${formatDateDE(new Date())}</span>
+          <span class="hero-date">${currentClock()} ${tz ? `· GMT${tz}` : ''}</span>
           <span class="hero-phase" style="background:rgba(var(--phase-rgb,139,92,246),0.12);color:${phase.color};border-color:rgba(var(--phase-rgb,139,92,246),0.25)">
             ${phase.label}
           </span>

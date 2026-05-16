@@ -2,7 +2,7 @@ import { State } from '../state.js';
 import { uuid, formatDateShort, renderIcons } from '../util.js';
 import { Modal } from '../components/modal.js';
 import { Toast } from '../components/toast.js';
-import { translateDom } from '../i18n.js';
+import { t, translateDom } from '../i18n.js';
 
 let _charts = [];
 
@@ -18,11 +18,11 @@ export function renderMocks(container) {
   container.innerHTML = `
     <div class="view">
       <div class="view-header">
-        <div><div class="view-title">Probeklausuren</div>
-          <div class="view-sub">Tracke deinen Fortschritt in allen Fächern</div>
+        <div><div class="view-title">${t('Probeklausuren')}</div>
+          <div class="view-sub">${t('Tracke deinen Fortschritt in allen Fächern')}</div>
         </div>
         <button class="btn btn-primary btn-sm" id="btn-add-mock">
-          <i data-lucide="plus"></i> Mock eintragen
+          <i data-lucide="plus"></i> ${t('Mock eintragen')}
         </button>
       </div>
       <div class="mocks-layout" id="mocks-layout"></div>
@@ -45,9 +45,9 @@ function renderAll(container, subjects) {
   if (!allMocks.length && !subjects.some(s => allMocks.some(m => m.subjectId === s.id))) {
     layout.innerHTML = `<div class="empty-state">
       <i data-lucide="file-check-2" style="width:48px;height:48px"></i>
-      <div class="empty-title">Noch keine Probeklausuren</div>
-      <div class="empty-sub">Trage deine ersten Ergebnisse ein, um deinen Fortschritt zu tracken.</div>
-      <button class="btn btn-primary btn-sm" onclick="this.dispatchEvent(new CustomEvent('mocks:new',{bubbles:true}))">Mock eintragen</button>
+      <div class="empty-title">${t('noMocksYet')}</div>
+      <div class="empty-sub">${t('addFirstMockHint')}</div>
+      <button class="btn btn-primary btn-sm" onclick="this.dispatchEvent(new CustomEvent('mocks:new',{bubbles:true}))">${t('Mock eintragen')}</button>
     </div>`;
     return;
   }
@@ -57,7 +57,7 @@ function renderAll(container, subjects) {
     return `<div class="mocks-subject-section" id="mock-section-${s.id}">
       <div class="mocks-subject-header">
         <div class="mocks-subject-name" style="color:var(--subject-${s.id})">${s.name}</div>
-        <div class="mocks-count">${mocks.length} / 5 Mocks</div>
+        <div class="mocks-count">${mocks.length} / 5 ${t('Mocks')}</div>
       </div>
       ${mocks.length ? `<div class="mocks-content">
         <div class="card" style="padding:12px">
@@ -69,7 +69,7 @@ function renderAll(container, subjects) {
           </div>
         </div>
       </div>` : `<div class="card" style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px">
-        Noch keine Mocks für dieses Fach. <button class="btn btn-ghost btn-sm" style="margin-left:8px" data-add-mock="${s.id}">Eintragen</button>
+        ${t('noMocksSubject')} <button class="btn btn-ghost btn-sm" style="margin-left:8px" data-add-mock="${s.id}">${t('Eintragen')}</button>
       </div>`}
     </div>`;
   }).join('');
@@ -97,7 +97,7 @@ function buildMockItem(mock, i, subject) {
   return `<div class="mock-item" data-mock-id="${mock.id}" role="button" tabindex="0" style="border-radius:0;border-left:none;border-right:none;border-top:none">
     <div class="mock-num">#${i+1}</div>
     <div class="mock-info">
-      <div class="mock-pct" style="color:var(--subject-${subject.id})">${pct}% · Note ~${grade}</div>
+      <div class="mock-pct" style="color:var(--subject-${subject.id})">${pct}% · ${t('grade')} ~${grade}</div>
       <div class="mock-date">${formatDateShort(mock.date)}</div>
       ${mock.note ? `<div class="mock-note">${mock.note}</div>` : ''}
     </div>
@@ -113,7 +113,7 @@ function buildMockChart(subject, mocks) {
   const grid   = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
   const subColor = { klr:'#10B981', math:'#8B5CF6', prog:'#06B6D4', kbs:'#F59E0B' }[subject.id] || '#8B5CF6';
 
-  const labels = mocks.map((_,i) => `Mock ${i+1}`);
+  const labels = mocks.map((_,i) => `${t('Mock')} ${i+1}`);
   const data   = mocks.map(m => Math.round(m.score/m.maxScore*100));
   const maxScore = mocks[0]?.maxScore || 100;
 
@@ -122,9 +122,9 @@ function buildMockChart(subject, mocks) {
     data: {
       labels,
       datasets: [
-        { label:'Ergebnis (%)', data, borderColor: subColor, backgroundColor: subColor+'22',
+        { label:t('resultPct'), data, borderColor: subColor, backgroundColor: subColor+'22',
           fill:true, tension:0.4, pointRadius:5, pointBackgroundColor:subColor },
-        { label:'Ziel (92%)', data: labels.map(()=>92), borderColor:'rgba(255,255,255,0.2)',
+        { label:t('target92'), data: labels.map(()=>92), borderColor:'rgba(255,255,255,0.2)',
           borderDash:[5,5], pointRadius:0, fill:false }
       ]
     },
@@ -144,35 +144,35 @@ function buildMockChart(subject, mocks) {
 function openAddModal(subjects, onSave, prefillSubject) {
   const body = `
     <div class="field">
-      <label for="am-subject">Fach</label>
+      <label for="am-subject">${t('Fach')}</label>
       <select class="select" id="am-subject">
         ${subjects.map(s=>`<option value="${s.id}"${s.id===prefillSubject?' selected':''}>${s.name}</option>`).join('')}
       </select>
     </div>
     <div class="field-row">
       <div class="field">
-        <label for="am-score">Erreichte Punkte</label>
+        <label for="am-score">${t('earnedPoints')}</label>
         <input class="input" id="am-score" type="number" min="0" placeholder="87" />
       </div>
       <div class="field">
-        <label for="am-max">Maximalpunkte</label>
+        <label for="am-max">${t('maxPoints')}</label>
         <input class="input" id="am-max" type="number" min="1" value="100" />
       </div>
     </div>
     <div class="field">
-      <label for="am-date">Datum</label>
+      <label for="am-date">${t('Datum')}</label>
       <input class="input" id="am-date" type="date" value="${new Date().toISOString().split('T')[0]}" />
     </div>
     <div class="field">
-      <label for="am-note">Notiz</label>
-      <input class="input" id="am-note" type="text" placeholder="Optional" />
+      <label for="am-note">${t('Notiz')}</label>
+      <input class="input" id="am-note" type="text" placeholder="${t('Optional')}" />
     </div>`;
 
   const modal = Modal.open({
-    title: 'Mock eintragen',
+    title: t('Mock eintragen'),
     body,
-    footer:`<button class="btn btn-ghost" id="am-cancel">Abbrechen</button>
-            <button class="btn btn-primary" id="am-save">Speichern</button>`
+    footer:`<button class="btn btn-ghost" id="am-cancel">${t('Abbrechen')}</button>
+            <button class="btn btn-primary" id="am-save">${t('Speichern')}</button>`
   });
   renderIcons(modal.el);
 
@@ -190,7 +190,7 @@ function openAddModal(subjects, onSave, prefillSubject) {
     };
     State.addMock(mock);
     modal.close();
-    Toast.success('Mock gespeichert', `${Math.round(score/max*100)}%`);
+    Toast.success(t('Mock gespeichert'), `${Math.round(score/max*100)}%`);
     onSave?.();
   });
 }
@@ -199,20 +199,20 @@ function openDetailModal(mock, subjects, onSave) {
   const sub = subjects.find(s => s.id === mock.subjectId);
   const pct = Math.round(mock.score/mock.maxScore*100);
   const modal = Modal.open({
-    title: `${sub?.name} – Mock`,
+    title: `${sub?.name} – ${t('Mock')}`,
     body:`<div style="text-align:center;padding:8px 0 16px">
       <div style="font-family:var(--font-mono);font-size:48px;font-weight:700;color:var(--subject-${mock.subjectId})">${pct}%</div>
-      <div style="font-size:14px;color:var(--text-secondary)">${mock.score} / ${mock.maxScore} Punkte · ${formatDateShort(mock.date)}</div>
+      <div style="font-size:14px;color:var(--text-secondary)">${mock.score} / ${mock.maxScore} ${t('Punkte')} · ${formatDateShort(mock.date)}</div>
     </div>
     ${mock.note ? `<div class="detail-description">${mock.note}</div>` : ''}`,
-    footer:`<button class="btn btn-danger btn-sm" id="md-del">Löschen</button>
-            <button class="btn btn-ghost btn-sm" id="md-close">Schließen</button>`
+    footer:`<button class="btn btn-danger btn-sm" id="md-del">${t('Löschen')}</button>
+            <button class="btn btn-ghost btn-sm" id="md-close">${t('Schließen')}</button>`
   });
   modal.el.querySelector('#md-close')?.addEventListener('click', () => modal.close());
   modal.el.querySelector('#md-del')?.addEventListener('click', () => {
     State.removeMock(mock.id);
     modal.close();
-    Toast.success('Mock gelöscht');
+    Toast.success(t('Mock gelöscht'));
     onSave?.();
   });
 }

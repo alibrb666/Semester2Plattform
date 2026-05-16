@@ -110,7 +110,8 @@ const DEFAULT_STATE = {
     dailyGoalMinutes: 240,
     weeklyGoals: {},
     soundEnabled: true, notificationsEnabled: false, streakFreezeUsed: false,
-    language: 'de'
+    language: 'de',
+    timezoneOffset: ''
   },
   subjects: [],
   sessions: [],
@@ -140,6 +141,7 @@ async function boot() {
     const cached = Storage.load({ allowLegacy: false });
     const defaultBase = JSON.parse(JSON.stringify(DEFAULT_STATE));
     State.init(cached || defaultBase);
+    localStorage.setItem('learn.tz_offset', (cached?.settings?.timezoneOffset || defaultBase.settings.timezoneOffset || ''));
     // Apply cached language immediately so shell doesn't flash German
     const cachedLang = cached?.settings?.language || 'de';
     setLanguageSilent(cachedLang);
@@ -159,6 +161,7 @@ async function boot() {
         const base = cached || JSON.parse(JSON.stringify(DEFAULT_STATE));
         return Sync.loadAllData(user.id, base).then(stateData => {
           State.init(stateData);
+          localStorage.setItem('learn.tz_offset', stateData.settings?.timezoneOffset || '');
           Storage.saveNow(stateData);
           Sync.pushProfileState(State.get(), user.id);
           setLanguageSilent(stateData.settings.language || cachedLang);
@@ -199,6 +202,7 @@ function showNameScreen() {
     };
     setLanguage(defaultBase.settings.language);
     State.init(defaultBase);
+    localStorage.setItem('learn.tz_offset', defaultBase.settings?.timezoneOffset || '');
     Storage.saveNow(defaultBase);
     updateUserAvatar(user);
     Sync.initOfflineHandling(user.id);
@@ -218,6 +222,7 @@ function showNameScreen() {
       stateData.settings.language = profileScreenChanged
         ? getLanguage()
         : (stateData.settings.language || getLanguage());
+      localStorage.setItem('learn.tz_offset', stateData.settings?.timezoneOffset || '');
       State.init(stateData);
       Auth.updateLocalProfile({ id: user.id, name: stateData.settings.name || name || 'Nutzer', language: stateData.settings.language });
       Storage.saveNow(stateData);
