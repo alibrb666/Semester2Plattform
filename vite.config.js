@@ -101,64 +101,121 @@ function aiAssistantPlugin() {
 
   const toOpenAIInputs = (materials = [], mocks = []) => {
     const items = [];
+    const safeName = name => {
+      const cleaned = String(name || 'document.pdf')
+        .normalize('NFKD')
+        .replace(/[^\w.\-]+/g, '_')
+        .replace(/_+/g, '_')
+        .slice(0, 80);
+      return cleaned.toLowerCase().endsWith('.pdf') ? cleaned : `${cleaned}.pdf`;
+    };
+    const normalizeDataUrl = raw => {
+      if (!raw || typeof raw !== 'string' || !raw.startsWith('data:')) return null;
+      const comma = raw.indexOf(',');
+      if (comma < 0) return null;
+      const header = raw.slice(5, comma); // after "data:"
+      const payload = raw.slice(comma + 1).trim();
+      if (!payload) return null;
+      const b64 = payload.replace(/\s+/g, '');
+      // Ensure valid base64 alphabet and padding-like shape.
+      if (!/^[A-Za-z0-9+/=]+$/.test(b64)) return null;
+      const mime = header.includes(';') ? header.split(';')[0] : header;
+      const finalMime = mime && mime.includes('/') ? mime : 'application/pdf';
+      return `data:${finalMime};base64,${b64}`;
+    };
     for (const m of [...materials, ...mocks]) {
       const d = m?.pdfAttachment?.dataUrl;
-      if (!d || typeof d !== 'string' || !d.startsWith('data:')) continue;
-      const comma = d.indexOf(',');
-      if (comma < 0) continue;
-      const b64 = d.slice(comma + 1);
+      const normalized = normalizeDataUrl(d);
+      if (!normalized) continue;
       items.push({
         type: 'input_file',
-        filename: m?.pdfAttachment?.name || 'document.pdf',
-        file_data: b64
+        filename: safeName(m?.pdfAttachment?.name || 'document.pdf'),
+        file_data: normalized
       });
     }
     return items;
   };
 
-  const callOpenAI = async ({ prompt, materials, mocks, mode }) => {
-    const apiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_APIKEY;
-    if (!apiKey) throw new Error('OPENAI_API_KEY is missing on server');
-
+  const callOllama = async ({ prompt, materials, mocks, mode, model }) => {
     const system = mode === 'mock'
       ? 'You are an exam generator. Create a realistic mock exam with points, sections, answer key and grading rubric. Use only provided source content. If source is insufficient, say what is missing.'
       : 'You are a study tutor. Answer only with evidence from provided source content. If uncertain, say so and ask for more source PDFs.';
+    const textContext = buildSourceContext(materials, mocks);
 
+    const resp = await fetch((process.env.OLLAMA_URL || 'http://127.0.0.1:11434') + '/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: model || process.env.OLLAMA_MODEL || 'llama3.1:8b',
+        stream: false,
+        options: { temperature: mode === 'mock' ? 0.7 : 0.2 },
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: `SOURCE SUMMARY:\n${textContext || 'No metadata available.'}\n\nTASK:\n${prompt}` }
+        ]
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data?.error || `Ollama error ${resp.status}`);
+    return data?.message?.content || 'No output.';
+  };
+
+  const callOpenAI = async ({ prompt, materials, mocks, mode, model }) => {
+    const apiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_APIKEY;
+    if (!apiKey) throw new Error('OPENAI_API_KEY is missing on server');
+    const system = mode === 'mock'
+      ? 'You are an exam generator. Create a realistic mock exam with points, sections, answer key and grading rubric. Use only provided source content. If source is insufficient, say what is missing.'
+      : 'You are a study tutor. Answer only with evidence from provided source content. If uncertain, say so and ask for more source PDFs.';
     const textContext = buildSourceContext(materials, mocks);
     const fileInputs = toOpenAIInputs(materials, mocks);
-
     const input = [
       { role: 'system', content: [{ type: 'input_text', text: system }] },
-      {
-        role: 'user',
-        content: [
-          { type: 'input_text', text: `SOURCE SUMMARY:\n${textContext || 'No metadata available.'}\n\nTASK:\n${prompt}` },
-          ...fileInputs
-        ]
-      }
+      { role: 'user', content: [{ type: 'input_text', text: `SOURCE SUMMARY:\n${textContext || 'No metadata available.'}\n\nTASK:\n${prompt}` }, ...fileInputs] }
     ];
-
     const resp = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-        input,
-        temperature: mode === 'mock' ? 0.7 : 0.2
-      })
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: model || process.env.OPENAI_MODEL || 'gpt-4.1-mini', input, temperature: mode === 'mock' ? 0.7 : 0.2 })
     });
     const data = await resp.json();
     if (!resp.ok) throw new Error(data?.error?.message || `OpenAI error ${resp.status}`);
     return data?.output_text || 'No output.';
   };
 
+  const callModel = async ({ prompt, materials, mocks, mode, model }) => {
+    const provider = (process.env.AI_PROVIDER || 'ollama').toLowerCase();
+    if (provider === 'openai') return callOpenAI({ prompt, materials, mocks, mode, model });
+    return callOllama({ prompt, materials, mocks, mode, model });
+  };
+
+  const listModels = async () => {
+    const helpful = [
+      { id: 'llama3.1:8b', provider: 'ollama', note: 'Fast baseline, good German/English tutoring' },
+      { id: 'qwen2.5:14b', provider: 'ollama', note: 'Strong reasoning, good for exam generation' },
+      { id: 'mistral-nemo:12b', provider: 'ollama', note: 'Balanced quality/speed' },
+      { id: 'deepseek-r1:8b', provider: 'ollama', note: 'Reasoning-heavy answers' },
+      { id: 'phi4:14b', provider: 'ollama', note: 'Compact and fast for local setups' }
+    ];
+    try {
+      const resp = await fetch((process.env.OLLAMA_URL || 'http://127.0.0.1:11434') + '/api/tags');
+      const data = await resp.json();
+      const installed = (data?.models || []).map(m => ({ id: m.name, provider: 'ollama', installed: true }));
+      return { helpful, installed };
+    } catch {
+      return { helpful, installed: [] };
+    }
+  };
+
   const handler = async (req, res) => {
     try {
       const url = new URL(req.url, 'http://localhost');
       if (!url.pathname.startsWith('/api/ai/')) return false;
+
+      if (url.pathname === '/api/ai/models' && req.method === 'GET') {
+        const models = await listModels();
+        json(res, 200, { ok: true, ...models });
+        return true;
+      }
       if (req.method !== 'POST') {
         json(res, 405, { error: 'Method not allowed' });
         return true;
@@ -166,12 +223,13 @@ function aiAssistantPlugin() {
       const body = await readBody(req);
       const materials = Array.isArray(body?.materials) ? body.materials : [];
       const mocks = Array.isArray(body?.mocks) ? body.mocks : [];
+      const model = body?.model ? String(body.model) : undefined;
 
       if (url.pathname === '/api/ai/mock') {
         const subject = body?.subjectName || 'selected subject';
         const difficulty = body?.difficulty || 'medium';
         const prompt = `Generate one full mock exam for ${subject}. Difficulty: ${difficulty}. Include:\n1) Exam instructions\n2) 3 sections\n3) points per question\n4) full answer key\n5) short feedback checklist.`;
-        const text = await callOpenAI({ prompt, materials, mocks, mode: 'mock' });
+        const text = await callModel({ prompt, materials, mocks, mode: 'mock', model });
         json(res, 200, { ok: true, text });
         return true;
       }
@@ -181,7 +239,7 @@ function aiAssistantPlugin() {
           json(res, 400, { error: 'Missing question' });
           return true;
         }
-        const text = await callOpenAI({ prompt: q, materials, mocks, mode: 'qa' });
+        const text = await callModel({ prompt: q, materials, mocks, mode: 'qa', model });
         json(res, 200, { ok: true, text });
         return true;
       }

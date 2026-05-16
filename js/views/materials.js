@@ -253,6 +253,12 @@ function openAssistantChat(materials, mocks, subjects) {
           ${sources.map(s => `<option value="${s.id}">${escapeHtml(s.label)}</option>`).join('')}
         </select>
       </div>
+      <div class="field">
+        <label for="ai-model">LLM Model</label>
+        <select class="select" id="ai-model">
+          <option value="llama3.1:8b">llama3.1:8b</option>
+        </select>
+      </div>
       <div id="ai-chat-log" style="height:44vh;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--bg-elevated);display:flex;flex-direction:column;gap:8px"></div>
       <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-top:10px">
         <input class="input" id="ai-chat-input" type="text" placeholder="Ask something from the selected PDF..." />
@@ -266,6 +272,7 @@ function openAssistantChat(materials, mocks, subjects) {
   const log = modal.el.querySelector('#ai-chat-log');
   const input = modal.el.querySelector('#ai-chat-input');
   const srcSel = modal.el.querySelector('#ai-source');
+  const modelSel = modal.el.querySelector('#ai-model');
 
   const append = (role, txt) => {
     const side = role === 'user' ? 'flex-end' : 'flex-start';
@@ -295,6 +302,8 @@ function openAssistantChat(materials, mocks, subjects) {
     return { ...payload, sourceName: selected.fileName };
   };
 
+  const selectedModel = () => modelSel?.value || 'llama3.1:8b';
+
   const askNow = async () => {
     const q = input.value.trim();
     if (!q) return;
@@ -307,7 +316,7 @@ function openAssistantChat(materials, mocks, subjects) {
       const res = await fetch('/api/ai/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: q, materials: selected.materials, mocks: selected.mocks })
+        body: JSON.stringify({ question: q, materials: selected.materials, mocks: selected.mocks, model: selectedModel() })
       });
       const data = await res.json();
       placeholder.textContent = res.ok && data?.ok ? data.text : (data?.error || 'Unknown error');
@@ -326,7 +335,7 @@ function openAssistantChat(materials, mocks, subjects) {
       const res = await fetch('/api/ai/mock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subjectName, difficulty: 'medium', materials: selected.materials, mocks: selected.mocks })
+        body: JSON.stringify({ subjectName, difficulty: 'medium', materials: selected.materials, mocks: selected.mocks, model: selectedModel() })
       });
       const data = await res.json();
       placeholder.textContent = res.ok && data?.ok ? data.text : (data?.error || 'Unknown error');
@@ -343,6 +352,23 @@ function openAssistantChat(materials, mocks, subjects) {
   append('assistant', sources.length
     ? 'Select a PDF source and ask your question.'
     : 'No PDF found. Upload PDFs in Materials or Mocks first.');
+
+  fetch('/api/ai/models')
+    .then(r => r.json())
+    .then(data => {
+      if (!data?.ok || !modelSel) return;
+      const all = [...(data.installed || []), ...(data.helpful || [])];
+      const seen = new Set();
+      modelSel.innerHTML = all
+        .filter(m => {
+          if (!m?.id || seen.has(m.id)) return false;
+          seen.add(m.id);
+          return true;
+        })
+        .map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.id)}${m.installed ? ' (installed)' : ''}</option>`)
+        .join('');
+    })
+    .catch(() => {});
   translateDom(modal.el);
   renderIcons(modal.el);
 }
