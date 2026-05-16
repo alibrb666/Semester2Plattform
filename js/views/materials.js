@@ -294,27 +294,38 @@ function openAssistantChat(materials, mocks, subjects) {
   };
 
   const PDF_TEXT_LIMIT = 60000;
+  const PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+  const waitForPdfJs = async () => {
+    if (window.pdfjsLib) return window.pdfjsLib;
+    for (let i = 0; i < 50; i++) {
+      await new Promise(r => setTimeout(r, 100));
+      if (window.pdfjsLib) return window.pdfjsLib;
+    }
+    throw new Error('PDF.js failed to load');
+  };
 
   const extractPdfText = async (dataUrl) => {
-    if (!dataUrl || !window.pdfjsLib) return '';
-    try {
-      const base64 = dataUrl.split(',')[1] || '';
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const pdf = await window.pdfjsLib.getDocument({ data: bytes }).promise;
-      let out = '';
-      for (let p = 1; p <= pdf.numPages; p++) {
-        if (out.length >= PDF_TEXT_LIMIT) break;
-        const page = await pdf.getPage(p);
-        const content = await page.getTextContent();
-        const pageText = content.items.map(i => i.str).join(' ');
-        out += `\n--- Page ${p} ---\n${pageText}`;
-      }
-      return out.slice(0, PDF_TEXT_LIMIT);
-    } catch {
-      return '';
+    if (!dataUrl) throw new Error('PDF has no data');
+    const pdfjs = await waitForPdfJs();
+    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+      pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
     }
+    const comma = dataUrl.indexOf(',');
+    const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const pdf = await pdfjs.getDocument({ data: bytes }).promise;
+    let out = '';
+    for (let p = 1; p <= pdf.numPages; p++) {
+      if (out.length >= PDF_TEXT_LIMIT) break;
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      const pageText = content.items.map(i => i.str).join(' ');
+      out += `\n--- Page ${p} ---\n${pageText}`;
+    }
+    return out.slice(0, PDF_TEXT_LIMIT);
   };
 
   const stripItem = (m, pdfText = '') => ({
@@ -332,13 +343,20 @@ function openAssistantChat(materials, mocks, subjects) {
 
   const withSelected = async () => {
     const selected = sources.find(s => s.id === srcSel.value);
-    if (!selected) return { materials: [], mocks: [], sourceName: 'PDF' };
-    const pdfText = await extractPdfText(selected.item?.pdfAttachment?.dataUrl);
+    if (!selected) return { materials: [], mocks: [], sourceName: 'PDF', error: 'No source selected.' };
+    let pdfText = '';
+    let extractError = '';
+    try {
+      pdfText = await extractPdfText(selected.item?.pdfAttachment?.dataUrl);
+      if (!pdfText.trim()) extractError = 'PDF contains no extractable text (image-only or empty).';
+    } catch (e) {
+      extractError = `PDF text extraction failed: ${e?.message || e}`;
+    }
     const slim = stripItem(selected.item, pdfText);
     const payload = selected.type === 'material'
       ? { materials: [slim], mocks: [] }
       : { materials: [], mocks: [slim] };
-    return { ...payload, sourceName: selected.fileName };
+    return { ...payload, sourceName: selected.fileName, error: extractError, pdfChars: pdfText.length };
   };
 
   const selectedModel = () => modelSel?.value || 'qwen/qwen3.6-flash';
@@ -364,7 +382,11 @@ function openAssistantChat(materials, mocks, subjects) {
       placeholder.textContent = 'Please select a PDF source first.';
       return;
     }
-    placeholder.textContent = `Using source: ${selected.sourceName}\n...`;
+    if (selected.error) {
+      placeholder.textContent = `Cannot answer: ${selected.error}`;
+      return;
+    }
+    placeholder.textContent = `Using source: ${selected.sourceName} (${selected.pdfChars} chars)\n...`;
     try {
       const res = await fetch('/api/ai/ask', {
         method: 'POST',
@@ -392,8 +414,12 @@ function openAssistantChat(materials, mocks, subjects) {
       placeholder.textContent = 'Please select a PDF source first.';
       return;
     }
+    if (selected.error) {
+      placeholder.textContent = `Cannot generate mock: ${selected.error}`;
+      return;
+    }
     const subjectName = subjects.find(s => s.id === (selected.materials[0]?.subjectId || selected.mocks[0]?.subjectId))?.name || 'Subject';
-    placeholder.textContent = 'Generating...';
+    placeholder.textContent = `Generating from ${selected.sourceName} (${selected.pdfChars} chars)...`;
     try {
       const res = await fetch('/api/ai/mock', {
         method: 'POST',
