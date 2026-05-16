@@ -293,8 +293,9 @@ function openAssistantChat(materials, mocks, subjects) {
     log.scrollTop = log.scrollHeight;
   };
 
-  const PDF_TEXT_LIMIT = 60000;
+  const PDF_TEXT_LIMIT = 40000;
   const PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  const pdfTextCache = new Map();
 
   const waitForPdfJs = async () => {
     if (window.pdfjsLib) return window.pdfjsLib;
@@ -344,13 +345,19 @@ function openAssistantChat(materials, mocks, subjects) {
   const withSelected = async () => {
     const selected = sources.find(s => s.id === srcSel.value);
     if (!selected) return { materials: [], mocks: [], sourceName: 'PDF', error: 'No source selected.' };
-    let pdfText = '';
+    let pdfText = pdfTextCache.get(selected.id) || '';
     let extractError = '';
-    try {
-      pdfText = await extractPdfText(selected.item?.pdfAttachment?.dataUrl);
-      if (!pdfText.trim()) extractError = 'PDF contains no extractable text (image-only or empty).';
-    } catch (e) {
-      extractError = `PDF text extraction failed: ${e?.message || e}`;
+    if (!pdfText) {
+      try {
+        pdfText = await extractPdfText(selected.item?.pdfAttachment?.dataUrl);
+        if (pdfText.trim()) {
+          pdfTextCache.set(selected.id, pdfText);
+        } else {
+          extractError = 'PDF contains no extractable text (image-only or empty).';
+        }
+      } catch (e) {
+        extractError = `PDF text extraction failed: ${e?.message || e}`;
+      }
     }
     const slim = stripItem(selected.item, pdfText);
     const payload = selected.type === 'material'
@@ -368,6 +375,28 @@ function openAssistantChat(materials, mocks, subjects) {
     } catch {
       return { data: null, raw };
     }
+  };
+
+  const TRANSIENT_ERROR_RE = /provider returned error|rate.?limit|timeout|429|502|503|504/i;
+
+  const callAi = async (url, payload, onAttempt) => {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      if (onAttempt) onAttempt(attempt);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const { data, raw } = await parseAiResponse(res);
+      if (res.ok && data?.ok) return { ok: true, text: data.text };
+      const errMsg = data?.error || (raw ? `HTTP ${res.status}: ${raw.slice(0, 200)}` : `HTTP ${res.status}`);
+      if (attempt === 1 && TRANSIENT_ERROR_RE.test(errMsg)) {
+        await new Promise(r => setTimeout(r, 1500));
+        continue;
+      }
+      return { ok: false, error: errMsg };
+    }
+    return { ok: false, error: 'Unknown error' };
   };
 
   const askNow = async () => {
@@ -388,18 +417,11 @@ function openAssistantChat(materials, mocks, subjects) {
     }
     placeholder.textContent = `Using source: ${selected.sourceName} (${selected.pdfChars} chars)\n...`;
     try {
-      const res = await fetch('/api/ai/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: q, materials: selected.materials, mocks: selected.mocks, model: selectedModel() })
-      });
-      const { data, raw } = await parseAiResponse(res);
-      if (res.ok && data?.ok) {
-        placeholder.textContent = data.text;
-      } else {
-        const errMsg = data?.error || (raw ? `HTTP ${res.status}: ${raw.slice(0, 200)}` : `HTTP ${res.status}`);
-        placeholder.textContent = formatAiError(errMsg, 'ask');
-      }
+      const result = await callAi('/api/ai/ask',
+        { question: q, materials: selected.materials, mocks: selected.mocks, model: selectedModel() },
+        attempt => { if (attempt > 1) placeholder.textContent = `Retrying (provider was busy)...`; }
+      );
+      placeholder.textContent = result.ok ? result.text : formatAiError(result.error, 'ask');
     } catch (e) {
       placeholder.textContent = formatAiError(String(e?.message || e), 'ask');
     }
@@ -421,18 +443,11 @@ function openAssistantChat(materials, mocks, subjects) {
     const subjectName = subjects.find(s => s.id === (selected.materials[0]?.subjectId || selected.mocks[0]?.subjectId))?.name || 'Subject';
     placeholder.textContent = `Generating from ${selected.sourceName} (${selected.pdfChars} chars)...`;
     try {
-      const res = await fetch('/api/ai/mock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subjectName, difficulty: 'medium', materials: selected.materials, mocks: selected.mocks, model: selectedModel() })
-      });
-      const { data, raw } = await parseAiResponse(res);
-      if (res.ok && data?.ok) {
-        placeholder.textContent = data.text;
-      } else {
-        const errMsg = data?.error || (raw ? `HTTP ${res.status}: ${raw.slice(0, 200)}` : `HTTP ${res.status}`);
-        placeholder.textContent = formatAiError(errMsg, 'mock');
-      }
+      const result = await callAi('/api/ai/mock',
+        { subjectName, difficulty: 'medium', materials: selected.materials, mocks: selected.mocks, model: selectedModel() },
+        attempt => { if (attempt > 1) placeholder.textContent = `Retrying (provider was busy)...`; }
+      );
+      placeholder.textContent = result.ok ? result.text : formatAiError(result.error, 'mock');
     } catch (e) {
       placeholder.textContent = formatAiError(String(e?.message || e), 'mock');
     }
@@ -536,6 +551,12 @@ function formatAiError(message, mode) {
   }
   if (/requires more credits/i.test(text) || /credit/i.test(text)) {
     return `${base}: the OpenRouter account has insufficient credits or the token limit is too high.`;
+  }
+  if (/provider returned error/i.test(text)) {
+    return `${base}: upstream provider is busy or rate-limited. Try again, switch model (paid qwen/qwen3.6-flash is most reliable), or wait a minute.`;
+  }
+  if (/rate.?limit|429/i.test(text)) {
+    return `${base}: rate limit hit (free models are capped per minute/day). Switch to a paid model or wait.`;
   }
   if (/fetch/i.test(text) || /network/i.test(text)) {
     return `${base}: network error while contacting the AI endpoint.`;

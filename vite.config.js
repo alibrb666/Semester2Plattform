@@ -85,7 +85,7 @@ function aiAssistantPlugin() {
   });
 
   const buildSourceContext = (materials = [], mocks = []) => {
-    const MAX_PDF_CHARS_PER_SOURCE = 60000;
+    const MAX_PDF_CHARS_PER_SOURCE = 40000;
     const lines = [];
     materials.forEach((m, i) => {
       lines.push(`[Material ${i + 1}] subject=${m.subjectName || m.subjectId || '-'} kind=${m.kind || '-'} title=${m.title || '-'}`);

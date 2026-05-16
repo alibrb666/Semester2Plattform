@@ -12,7 +12,7 @@ function getBody(req) {
   return {};
 }
 
-const MAX_PDF_CHARS_PER_SOURCE = 60000;
+const MAX_PDF_CHARS_PER_SOURCE = 40000;
 
 function buildSourceContext(materials = [], mocks = []) {
   const lines = [];
