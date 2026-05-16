@@ -8,7 +8,7 @@ import { Modal } from '../components/modal.js';
 import { Toast } from '../components/toast.js';
 import { Storage } from '../storage.js';
 import { openTodoModalFromDash } from './todos.js';
-import { translateDom } from '../i18n.js';
+import { t, translateDom } from '../i18n.js';
 
 let _clockTimer = null;
 
@@ -32,6 +32,9 @@ export function renderDashboard(container) {
     const goal  = (settings.weeklyGoals?.[s.id] || 360) * 60;
     return { ...s, wSecs, goal, pct: Math.min(100, Math.round(wSecs / goal * 100)) };
   });
+  const recommended = subjectStats
+    .map(s => ({ ...s, ratio: s.goal > 0 ? s.wSecs / s.goal : 1 }))
+    .sort((a, b) => a.ratio - b.ratio)[0];
 
   /* Smart suggestions */
   const suggestions = buildSuggestions(sessions, subjects, settings, weekSess, phase);
@@ -67,7 +70,7 @@ export function renderDashboard(container) {
         <h1 class="hero-greeting">${greeting(settings.name)}</h1>
         <div class="hero-meta">
           <span class="hero-date">${formatDateDE(new Date())}</span>
-          <span class="hero-date hero-clock" id="hero-clock">${currentClock()} ${tz ? `· GMT${tz}` : ''}</span>
+          <span class="hero-date hero-clock" id="hero-clock">${currentClock(true)} ${tz ? `· GMT${tz}` : ''}</span>
           <span class="hero-phase" style="background:rgba(var(--phase-rgb,139,92,246),0.12);color:${phase.color};border-color:rgba(var(--phase-rgb,139,92,246),0.25)">
             ${phase.label}
           </span>
@@ -126,6 +129,22 @@ export function renderDashboard(container) {
             </div>`).join('')}
         </div>
       </div>
+
+      ${recommended ? `
+      <section class="card" style="margin-top:12px">
+        <div class="section-header">
+          <div class="section-title">${t('momentumCoach')}</div>
+          <span style="font-size:12px;color:var(--text-tertiary)">${Math.round((recommended.ratio || 0) * 100)}% ${t('weeklyGoalDone')}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap">
+          <div style="font-size:14px;color:var(--text-secondary)">
+            ${t('bestNextSubject')}: <strong style="color:var(--subject-${recommended.id})">${recommended.name}</strong>
+          </div>
+          <button class="btn btn-primary btn-sm" id="btn-start-recommended" data-start-recommended="${recommended.id}">
+            <i data-lucide="play"></i> ${t('startNow')}
+          </button>
+        </div>
+      </section>` : ''}
 
       <!-- Heatmap -->
       <section aria-label="Lernaktivität der letzten 90 Tage">
@@ -200,7 +219,7 @@ export function renderDashboard(container) {
   const clockEl = container.querySelector('#hero-clock');
   if (clockEl) {
     _clockTimer = setInterval(() => {
-      clockEl.textContent = `${currentClock()} ${tz ? `· GMT${tz}` : ''}`;
+      clockEl.textContent = `${currentClock(true)} ${tz ? `· GMT${tz}` : ''}`;
     }, 1000);
   }
 
@@ -235,6 +254,10 @@ export function renderDashboard(container) {
     const id = card.dataset.startSubject;
     card.addEventListener('click', () => SessionTracker.openNewSession(id));
     card.addEventListener('keydown', e => { if (e.key === 'Enter') SessionTracker.openNewSession(id); });
+  });
+  container.querySelector('#btn-start-recommended')?.addEventListener('click', e => {
+    const id = e.currentTarget?.dataset?.startRecommended;
+    if (id) SessionTracker.openNewSession(id);
   });
 
   /* Recent session clicks */

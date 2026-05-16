@@ -58,10 +58,10 @@ export function formatDateFull(date) {
   });
 }
 
-export function formatTime(date) {
+export function formatTime(date, withSeconds = false) {
   const d = toTargetDate(date);
   return d.toLocaleTimeString(locale(), {
-    hour: '2-digit', minute: '2-digit',
+    hour: '2-digit', minute: '2-digit', ...(withSeconds ? { second: '2-digit' } : {}),
     ...(hasOffset() ? { timeZone: 'UTC' } : {})
   });
 }
@@ -107,8 +107,8 @@ export function greeting(name) {
   return `${g}, ${name || 'Lukas'}`;
 }
 
-export function currentClock() {
-  return formatTime(new Date());
+export function currentClock(withSeconds = false) {
+  return formatTime(new Date(), withSeconds);
 }
 
 export function isSameDay(a, b) {
