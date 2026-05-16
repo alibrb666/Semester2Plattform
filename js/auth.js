@@ -154,9 +154,23 @@ export const Auth = {
           language: p?.settings?.language || 'de',
           lastUsedAt: p.updated_at || null
         }));
-      const merged = dedupeProfilesByName(mergeProfiles(local, cloud));
-      writeProfiles(merged);
-      return merged.sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
+      if (!cloud.length) return local;
+
+      // Cloud is source of truth for visible accounts. Keep only cloud IDs,
+      // but preserve local metadata (PIN/language/lastUsedAt) for matching IDs.
+      const localById = new Map(local.map(p => [p.id, p]));
+      const synced = dedupeProfilesByName(cloud.map(c => {
+        const l = localById.get(c.id);
+        return {
+          ...c,
+          pinHash: l?.pinHash ?? null,
+          language: l?.language || c.language || 'de',
+          lastUsedAt: l?.lastUsedAt || c.lastUsedAt || null
+        };
+      }));
+
+      writeProfiles(synced);
+      return synced.sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
     } catch {
       return local;
     }
