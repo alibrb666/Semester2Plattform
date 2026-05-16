@@ -7,6 +7,7 @@ import { t, translateDom } from '../i18n.js';
 export function renderMaterials(container) {
   const subjects = State.getSubjects();
   const items = State.getMaterials().slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const mocks = State.getMocks();
 
   container.innerHTML = `
     <div class="view">
@@ -18,6 +19,17 @@ export function renderMaterials(container) {
         <button class="btn btn-primary btn-sm" id="btn-add-material">
           <i data-lucide="plus"></i> ${t('addEntry')}
         </button>
+      </div>
+      <div class="card" style="padding:14px;margin-bottom:12px">
+        <div class="section-header">
+          <div class="section-title">LLM Assistant</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center">
+          <input class="input" id="ai-question" type="text" placeholder="Ask a question about your PDFs…" />
+          <button class="btn btn-secondary btn-sm" id="btn-ai-ask">Ask PDF</button>
+          <button class="btn btn-primary btn-sm" id="btn-ai-mock">Generate Mock</button>
+        </div>
+        <div style="font-size:12px;color:var(--text-tertiary);margin-top:8px">Uses uploaded PDFs from this account.</div>
       </div>
       <div id="materials-list"></div>
     </div>`;
@@ -50,6 +62,16 @@ export function renderMaterials(container) {
   }
 
   container.querySelector('#btn-add-material')?.addEventListener('click', () => openCreateModal(subjects, () => renderMaterials(container)));
+  container.querySelector('#btn-ai-ask')?.addEventListener('click', async () => {
+    const q = container.querySelector('#ai-question')?.value?.trim();
+    if (!q) return;
+    await runAssistantAsk({ question: q, items: State.getMaterials(), mocks });
+  });
+  container.querySelector('#btn-ai-mock')?.addEventListener('click', async () => {
+    const subject = subjects[0];
+    if (!subject) return;
+    await runAssistantMock({ subjectName: subject.name, items: State.getMaterials(), mocks });
+  });
   list.querySelectorAll('[data-material-id]').forEach(el => {
     el.addEventListener('click', e => {
       if (e.target.closest('[data-pdf-preview]')) return;
@@ -174,4 +196,56 @@ function openDetail(item, subjects, onSave) {
       body: `<iframe src="${item.pdfAttachment.dataUrl}" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:10px"></iframe>`
     });
   });
+}
+
+async function runAssistantAsk({ question, items, mocks }) {
+  const loading = Modal.open({
+    title: 'LLM Assistant',
+    body: `<div style="font-size:14px;color:var(--text-secondary)">Running PDF Q&A…</div>`
+  });
+  try {
+    const res = await fetch('/api/ai/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, materials: items, mocks })
+    });
+    const data = await res.json();
+    loading.close();
+    if (!res.ok || !data?.ok) {
+      Modal.open({ title: 'LLM Assistant Error', body: `<pre style="white-space:pre-wrap">${data?.error || 'Unknown error'}</pre>` });
+      return;
+    }
+    Modal.open({ title: 'Assistant Answer', size: 'lg', body: `<pre style="white-space:pre-wrap;font-size:13px;line-height:1.5">${escapeHtml(data.text)}</pre>` });
+  } catch (e) {
+    loading.close();
+    Modal.open({ title: 'LLM Assistant Error', body: `<pre>${escapeHtml(String(e?.message || e))}</pre>` });
+  }
+}
+
+async function runAssistantMock({ subjectName, items, mocks }) {
+  const loading = Modal.open({
+    title: 'LLM Assistant',
+    body: `<div style="font-size:14px;color:var(--text-secondary)">Generating mock exam from PDFs…</div>`
+  });
+  try {
+    const res = await fetch('/api/ai/mock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subjectName, difficulty: 'medium', materials: items, mocks })
+    });
+    const data = await res.json();
+    loading.close();
+    if (!res.ok || !data?.ok) {
+      Modal.open({ title: 'LLM Assistant Error', body: `<pre style="white-space:pre-wrap">${data?.error || 'Unknown error'}</pre>` });
+      return;
+    }
+    Modal.open({ title: `Mock Exam · ${subjectName}`, size: 'lg', body: `<pre style="white-space:pre-wrap;font-size:13px;line-height:1.5">${escapeHtml(data.text)}</pre>` });
+  } catch (e) {
+    loading.close();
+    Modal.open({ title: 'LLM Assistant Error', body: `<pre>${escapeHtml(String(e?.message || e))}</pre>` });
+  }
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
