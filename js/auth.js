@@ -1,8 +1,10 @@
 import { supabase } from './supabase.js';
+import { t } from './i18n.js';
 
 const USER_KEY = 'learn.user_id';
 const AUTH_MODE_KEY = 'learn.auth_mode';
 const USERNAME_KEY = 'learn.username';
+const PROFILE_KEY = 'learn.profiles';
 
 async function usernameToId(username) {
   const name = String(username || 'Nutzer').trim() || 'Nutzer';
@@ -14,26 +16,110 @@ async function usernameToId(username) {
   return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20,32)}`;
 }
 
+async function hashPin(userId, pin) {
+  const clean = String(pin || '').trim();
+  if (!/^\d{4}$/.test(clean)) throw new Error(t('pinRequired'));
+  const data = new TextEncoder().encode(`lernplattform-pin:${userId}:${clean}`);
+  const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', data));
+  return [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function readProfiles() {
+  try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function writeProfiles(profiles) {
+  const clean = profiles
+    .filter(p => p?.id && p?.name)
+    .map(p => ({
+      id: p.id,
+      name: p.name,
+      pinHash: p.pinHash || null,
+      language: p.language || 'de',
+      lastUsedAt: p.lastUsedAt || null
+    }));
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(clean));
+}
+
+function upsertLocalProfile(profile) {
+  const profiles = readProfiles();
+  const idx = profiles.findIndex(p => p.id === profile.id);
+  const next = { ...(idx >= 0 ? profiles[idx] : {}), ...profile, lastUsedAt: new Date().toISOString() };
+  if (idx >= 0) profiles[idx] = next;
+  else profiles.push(next);
+  writeProfiles(profiles);
+  return next;
+}
+
 export const Auth = {
-  async signInWithUsername(name) {
+  listProfiles() {
+    const profiles = readProfiles();
+    const savedId = localStorage.getItem(USER_KEY);
+    const savedName = localStorage.getItem(USERNAME_KEY);
+    if (savedId && savedName && !profiles.some(p => p.id === savedId)) {
+      profiles.push({ id: savedId, name: savedName, pinHash: null, language: localStorage.getItem('learn.language') || 'de', lastUsedAt: new Date().toISOString() });
+      writeProfiles(profiles);
+    }
+    return profiles.sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
+  },
+
+  async signInWithUsername(name, options = {}) {
     const username = String(name || '').trim();
-    if (!username) throw new Error('Bitte Username eingeben.');
+    if (!username) throw new Error(t('nameRequired'));
     const id = await usernameToId(username);
+    const language = options.language || 'de';
+    const pinHash = options.pin ? await hashPin(id, options.pin) : options.pinHash || null;
+    const existing = readProfiles().find(p => p.id === id);
+    if (existing?.pinHash) {
+      if (!pinHash) throw new Error(t('profileExists'));
+      if (existing.pinHash !== pinHash) throw new Error(t('wrongPin'));
+    } else if (existing && pinHash) {
+      // Upgrade legacy profiles without PIN when the user logs in with one.
+      existing.pinHash = pinHash;
+    }
     localStorage.setItem(USER_KEY, id);
     localStorage.setItem(USERNAME_KEY, username);
     localStorage.setItem(AUTH_MODE_KEY, 'username');
+    upsertLocalProfile({ id, name: username, pinHash: existing?.pinHash || pinHash || null, language });
 
     const { data: profile } = await supabase.from('profiles').select('id').eq('id', id).single();
     if (!profile) {
       await supabase.from('profiles').upsert({
         id,
         name: username,
-        settings: { name: username },
+        settings: { name: username, language },
         updated_at: new Date().toISOString()
       });
     }
 
     return { id, user_metadata: { name: username }, isUsernameUser: true };
+  },
+
+  async unlockProfile(profile, pin) {
+    if (!profile?.id) throw new Error('Profil fehlt.');
+    if (profile.pinHash) {
+      const actual = await hashPin(profile.id, pin);
+      if (actual !== profile.pinHash) throw new Error(t('wrongPin'));
+    }
+    localStorage.setItem(USER_KEY, profile.id);
+    localStorage.setItem(USERNAME_KEY, profile.name);
+    localStorage.setItem(AUTH_MODE_KEY, 'username');
+    upsertLocalProfile(profile);
+    return { id: profile.id, user_metadata: { name: profile.name }, isUsernameUser: true };
+  },
+
+  async setProfilePin(profile, pin) {
+    if (!profile?.id) throw new Error('Profil fehlt.');
+    const pinHash = await hashPin(profile.id, pin);
+    return upsertLocalProfile({ ...profile, pinHash });
+  },
+
+  updateLocalProfile(patch) {
+    const id = patch?.id || localStorage.getItem(USER_KEY);
+    if (!id) return null;
+    const current = readProfiles().find(p => p.id === id) || { id, name: localStorage.getItem(USERNAME_KEY) || 'Nutzer' };
+    return upsertLocalProfile({ ...current, ...patch, id });
   },
 
   async getOrCreateUser(name) {
