@@ -6,6 +6,7 @@ import { Modal } from '../components/modal.js';
 import { Toast } from '../components/toast.js';
 import { SessionTracker } from '../components/sessionTracker.js';
 import * as scheduleSync from '../scheduleSync.js';
+import { translateDom } from '../i18n.js';
 
 const HOUR_H     = 80;
 const DAY_HOUR_H = 48;
@@ -147,6 +148,7 @@ function _renderWeekView(container) {
     </div>`;
 
   renderIcons(container);
+  translateDom(container);
   _placeBlocks(container, weekDays);
   _placeIcsEvents(container, weekDays);
   _updateScheduleSyncBar(container);
@@ -213,6 +215,7 @@ function _renderDayView(container) {
     </div>`;
 
   renderIcons(container);
+  translateDom(container);
   _placeBlocksDay(container, dateObj);
   _placeIcsEventsDay(container, dateObj);
   _placeDaySeparators(container.querySelector('.schedule-day-col'));

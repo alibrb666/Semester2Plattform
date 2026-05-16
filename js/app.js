@@ -109,16 +109,11 @@ const DEFAULT_STATE = {
   settings: {
     name: 'Nutzer', theme: 'dark', sidebarCollapsed: false,
     dailyGoalMinutes: 240,
-    weeklyGoals: { klr:360, math:390, prog:360, kbs:300 },
+    weeklyGoals: {},
     soundEnabled: true, notificationsEnabled: false, streakFreezeUsed: false,
     language: 'de'
   },
-  subjects: [
-    { id:'klr',  name:'KLR / FiBu',       color:'var(--subject-klr)',  examDate:'2026-07-21' },
-    { id:'math', name:'Mathe II',          color:'var(--subject-math)', examDate:'2026-07-24' },
-    { id:'prog', name:'Programmierung II', color:'var(--subject-prog)', examDate:'2026-07-27' },
-    { id:'kbs',  name:'KBS / IT',          color:'var(--subject-kbs)',  examDate:'2026-07-31' },
-  ],
+  subjects: [],
   sessions: [],
   scheduleBlocks: [],
   errorLog: [],

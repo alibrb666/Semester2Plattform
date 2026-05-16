@@ -5,6 +5,8 @@ import { renderIcons, setPhases, applySubjectColors } from '../util.js';
 import { Toast } from '../components/toast.js';
 import { Modal } from '../components/modal.js';
 import * as scheduleSync from '../scheduleSync.js';
+import { t, setLanguage, LANGUAGES, translateDom } from '../i18n.js';
+import { Auth } from '../auth.js';
 
 export function renderSettings(container) {
   const settings = State.getSettings();
@@ -13,19 +15,28 @@ export function renderSettings(container) {
   container.innerHTML = `
     <div class="view">
       <div class="view-header">
-        <div><div class="view-title">Einstellungen</div></div>
+        <div><div class="view-title">${t('settings')}</div></div>
       </div>
       <div class="settings-layout">
 
         <!-- Profil -->
         <section class="settings-section">
-          <div class="settings-section-title">Profil</div>
+          <div class="settings-section-title">${t('profile')}</div>
           <div class="settings-row">
             <div>
               <div class="settings-row-label">Name</div>
-              <div class="settings-row-sub">Wird in der Begrüßung angezeigt</div>
+              <div class="settings-row-sub">${t('profileNameSub')}</div>
             </div>
             <input class="input" id="set-name" type="text" value="${settings.name||'Lukas'}" style="max-width:200px" />
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">${t('language')}</div>
+              <div class="settings-row-sub">${t('languageSub')}</div>
+            </div>
+            <select class="select" id="set-language" style="max-width:200px">
+              ${LANGUAGES.map(l => `<option value="${l.code}" ${(settings.language || 'de') === l.code ? 'selected' : ''}>${t(l.labelKey)}</option>`).join('')}
+            </select>
           </div>
           <div class="settings-row">
             <div>
@@ -238,6 +249,8 @@ export function renderSettings(container) {
     </div>`;
 
   renderIcons(container);
+  // Settings re-renders itself after many interactions; ensure i18n is re-applied.
+  translateDom(container);
   _bindSettings(container, subjects);
   document.addEventListener('settings:export', () => exportData(), { once:true });
 }
@@ -318,8 +331,19 @@ function _esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;
 function _bindSettings(container, subjects) {
   /* Name & daily goal – save on blur */
   container.querySelector('#set-name')?.addEventListener('blur', e => {
-    State.updateSettings({ name: e.target.value.trim() || 'Lukas' });
+    const name = e.target.value.trim() || 'Lukas';
+    State.updateSettings({ name });
+    Auth.updateLocalProfile({ name });
     Toast.success('Name gespeichert');
+  });
+  container.querySelector('#set-language')?.addEventListener('change', e => {
+    const language = e.target.value || 'de';
+    State.updateSettings({ language });
+    Auth.updateLocalProfile({ language });
+    setLanguage(language);
+    Storage.saveNow(State.get());
+    Toast.success('Sprache gespeichert');
+    renderSettings(container);
   });
   container.querySelector('#set-daily')?.addEventListener('blur', e => {
     const v = parseFloat(e.target.value);
