@@ -1277,6 +1277,14 @@ label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
   flex-wrap: wrap;
 }
 .hero-date { font-size: 14px; color: var(--text-secondary); }
+.hero-clock {
+  display: inline-block;
+  animation: clockPulse 1.6s ease-in-out infinite;
+}
+@keyframes clockPulse {
+  0%, 100% { opacity: 1; transform: translateY(0); }
+  50% { opacity: .72; transform: translateY(-1px); }
+}
 .hero-phase {
   display: inline-flex; align-items: center; gap: var(--sp-2);
   font-size: 12px; font-weight: 500;

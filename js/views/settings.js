@@ -725,6 +725,7 @@ function _bindSettings(container, subjects) {
 function _openSubjectModal(subj, isNew, container) {
   const defaultColor = SUBJECT_COLORS[0].hex;
   const curColor = subj?.colorHex || defaultColor;
+  let docs = Array.isArray(subj?.pdfs) ? [...subj.pdfs] : [];
 
   const body = `
     <div class="field">
@@ -740,6 +741,11 @@ function _openSubjectModal(subj, isNew, container) {
       <label>Farbe</label>
       ${_colorPicker(curColor)}
     </div>
+    <div class="field">
+      <label for="subj-pdfs">PDFs</label>
+      <input class="input" id="subj-pdfs" type="file" accept="application/pdf" multiple />
+      <div id="subj-pdf-list" style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
+    </div>
     ${!isNew ? `<div class="field-hint" style="font-size:11px;color:var(--text-tertiary)">ID: <code>${subj?.id}</code> (intern, nicht änderbar)</div>` : ''}`;
 
   const modal = Modal.open({
@@ -752,6 +758,49 @@ function _openSubjectModal(subj, isNew, container) {
   });
   renderIcons(modal.el);
   modal.el.querySelector('#subj-name')?.focus();
+  const listEl = modal.el.querySelector('#subj-pdf-list');
+  const renderDocs = () => {
+    listEl.innerHTML = docs.length
+      ? docs.map((d, i) => `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid var(--border);padding:6px 8px;border-radius:8px">
+          <span style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(d.name)}</span>
+          <span style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm" type="button" data-pdf-open="${i}">Vorschau</button>
+            <button class="btn btn-danger btn-sm" type="button" data-pdf-del="${i}">Löschen</button>
+          </span>
+        </div>`).join('')
+      : `<div style="font-size:12px;color:var(--text-tertiary)">Keine PDFs</div>`;
+    translateDom(listEl);
+    listEl.querySelectorAll('[data-pdf-open]').forEach(btn => btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.pdfOpen);
+      const file = docs[idx];
+      if (!file?.dataUrl) return;
+      Modal.open({
+        title: file.name,
+        size: 'lg',
+        body: `<iframe src="${file.dataUrl}" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:10px"></iframe>`
+      });
+    }));
+    listEl.querySelectorAll('[data-pdf-del]').forEach(btn => btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.pdfDel);
+      docs = docs.filter((_, i) => i !== idx);
+      renderDocs();
+    }));
+  };
+  renderDocs();
+  modal.el.querySelector('#subj-pdfs')?.addEventListener('change', async e => {
+    const files = Array.from(e.target.files || []);
+    for (const f of files) {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result || ''));
+        r.onerror = reject;
+        r.readAsDataURL(f);
+      });
+      docs.push({ name: f.name, dataUrl, uploadedAt: new Date().toISOString() });
+    }
+    e.target.value = '';
+    renderDocs();
+  });
 
   // Color picker interaction
   modal.el.querySelectorAll('.color-option').forEach(opt => {
@@ -790,10 +839,10 @@ function _openSubjectModal(subj, isNew, container) {
         Toast.error('ID-Konflikt', `Ein Fach mit ähnlichem Namen existiert bereits (ID: ${id}).`);
         return;
       }
-      State.addSubject({ id, name, color: `var(--subject-${id})`, colorHex, examDate,
+      State.addSubject({ id, name, color: `var(--subject-${id})`, colorHex, examDate, pdfs: docs,
         weeklyGoal: 360 });
     } else {
-      State.updateSubject(subj.id, { name, examDate, colorHex });
+      State.updateSubject(subj.id, { name, examDate, colorHex, pdfs: docs });
     }
     applySubjectColors(State.getSubjects());
     Storage.saveNow(State.get());

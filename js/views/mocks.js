@@ -166,6 +166,10 @@ function openAddModal(subjects, onSave, prefillSubject) {
     <div class="field">
       <label for="am-note">${t('Notiz')}</label>
       <input class="input" id="am-note" type="text" placeholder="${t('Optional')}" />
+    </div>
+    <div class="field">
+      <label for="am-pdf">PDF</label>
+      <input class="input" id="am-pdf" type="file" accept="application/pdf" />
     </div>`;
 
   const modal = Modal.open({
@@ -181,17 +185,29 @@ function openAddModal(subjects, onSave, prefillSubject) {
     const score = parseFloat(modal.el.querySelector('#am-score')?.value);
     const max   = parseFloat(modal.el.querySelector('#am-max')?.value) || 100;
     if (isNaN(score)) { modal.el.querySelector('#am-score')?.focus(); return; }
-    const mock = {
+    const pdfFile = modal.el.querySelector('#am-pdf')?.files?.[0] || null;
+    const createMock = pdfAttachment => ({
       id: uuid(),
       subjectId: modal.el.querySelector('#am-subject')?.value,
       date: new Date(modal.el.querySelector('#am-date')?.value || Date.now()).toISOString(),
       score, maxScore: max,
-      note: modal.el.querySelector('#am-note')?.value.trim()
+      note: modal.el.querySelector('#am-note')?.value.trim(),
+      pdfAttachment
+    });
+    const finish = pdfAttachment => {
+      State.addMock(createMock(pdfAttachment));
+      modal.close();
+      Toast.success(t('Mock gespeichert'), `${Math.round(score/max*100)}%`);
+      onSave?.();
     };
-    State.addMock(mock);
-    modal.close();
-    Toast.success(t('Mock gespeichert'), `${Math.round(score/max*100)}%`);
-    onSave?.();
+    if (!pdfFile) {
+      finish(null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => finish({ name: pdfFile.name, dataUrl: String(reader.result || '') });
+    reader.onerror = () => finish(null);
+    reader.readAsDataURL(pdfFile);
   });
 }
 
@@ -204,11 +220,19 @@ function openDetailModal(mock, subjects, onSave) {
       <div style="font-family:var(--font-mono);font-size:48px;font-weight:700;color:var(--subject-${mock.subjectId})">${pct}%</div>
       <div style="font-size:14px;color:var(--text-secondary)">${mock.score} / ${mock.maxScore} ${t('Punkte')} · ${formatDateShort(mock.date)}</div>
     </div>
-    ${mock.note ? `<div class="detail-description">${mock.note}</div>` : ''}`,
+    ${mock.note ? `<div class="detail-description">${mock.note}</div>` : ''}
+    ${mock.pdfAttachment?.dataUrl ? `<div style="margin-top:12px"><button class="btn btn-secondary btn-sm" id="md-preview-pdf">PDF Vorschau</button></div>` : ''}`,
     footer:`<button class="btn btn-danger btn-sm" id="md-del">${t('Löschen')}</button>
             <button class="btn btn-ghost btn-sm" id="md-close">${t('Schließen')}</button>`
   });
   modal.el.querySelector('#md-close')?.addEventListener('click', () => modal.close());
+  modal.el.querySelector('#md-preview-pdf')?.addEventListener('click', () => {
+    Modal.open({
+      title: mock.pdfAttachment?.name || 'PDF',
+      size: 'lg',
+      body: `<iframe src="${mock.pdfAttachment?.dataUrl || ''}" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:10px"></iframe>`
+    });
+  });
   modal.el.querySelector('#md-del')?.addEventListener('click', () => {
     State.removeMock(mock.id);
     modal.close();

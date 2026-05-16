@@ -524,6 +524,10 @@ const PHRASES = {
     'Name gespeichert': 'Name saved',
     'Sprache gespeichert': 'Language saved',
     'Tagesziel gespeichert': 'Daily goal saved'
+    ,
+    'Vorschau': 'Preview',
+    'PDF Vorschau': 'PDF preview',
+    'Keine PDFs': 'No PDFs'
   },
   fr: {
     'Einstellungen': 'Paramètres',
@@ -843,6 +847,10 @@ const PHRASES = {
     'Name gespeichert': 'Nom enregistré',
     'Sprache gespeichert': 'Langue enregistrée',
     'Tagesziel gespeichert': 'Objectif quotidien enregistré'
+    ,
+    'Vorschau': 'Aperçu',
+    'PDF Vorschau': 'Aperçu PDF',
+    'Keine PDFs': 'Aucun PDF'
   }
 };
 

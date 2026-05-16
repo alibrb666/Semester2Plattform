@@ -10,7 +10,10 @@ import { Storage } from '../storage.js';
 import { openTodoModalFromDash } from './todos.js';
 import { translateDom } from '../i18n.js';
 
+let _clockTimer = null;
+
 export function renderDashboard(container) {
+  if (_clockTimer) { clearInterval(_clockTimer); _clockTimer = null; }
   const state    = State.get();
   const settings = State.getSettings();
   const sessions = State.getSessions();
@@ -64,7 +67,7 @@ export function renderDashboard(container) {
         <h1 class="hero-greeting">${greeting(settings.name)}</h1>
         <div class="hero-meta">
           <span class="hero-date">${formatDateDE(new Date())}</span>
-          <span class="hero-date">${currentClock()} ${tz ? `· GMT${tz}` : ''}</span>
+          <span class="hero-date hero-clock" id="hero-clock">${currentClock()} ${tz ? `· GMT${tz}` : ''}</span>
           <span class="hero-phase" style="background:rgba(var(--phase-rgb,139,92,246),0.12);color:${phase.color};border-color:rgba(var(--phase-rgb,139,92,246),0.25)">
             ${phase.label}
           </span>
@@ -194,6 +197,12 @@ export function renderDashboard(container) {
 
   renderIcons(container);
   translateDom(container);
+  const clockEl = container.querySelector('#hero-clock');
+  if (clockEl) {
+    _clockTimer = setInterval(() => {
+      clockEl.textContent = `${currentClock()} ${tz ? `· GMT${tz}` : ''}`;
+    }, 1000);
+  }
 
   container.querySelector('#demo-banner-clear')?.addEventListener('click', () => {
     if (!State.hasDemoEntries()) return;
