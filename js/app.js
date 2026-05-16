@@ -141,9 +141,42 @@ const DEFAULT_STATE = {
 async function boot() {
   const savedUserId = localStorage.getItem(USER_KEY);
 
-  if (savedUserId) Auth.listProfiles();
-  document.getElementById('app')?.removeAttribute('aria-busy');
-  showNameScreen();
+  if (savedUserId) {
+    setActiveUser(savedUserId);
+    const cached = Storage.load();
+    const defaultBase = JSON.parse(JSON.stringify(DEFAULT_STATE));
+    State.init(cached || defaultBase);
+    // Apply cached language immediately so shell doesn't flash German
+    const cachedLang = cached?.settings?.language || 'de';
+    setLanguageSilent(cachedLang);
+    launchApp();
+    applyShellLanguage();
+    const initialRoute = window.location.hash.replace('#', '') || 'dashboard';
+    Router.navigate(initialRoute);
+    if (navigator.onLine) document.getElementById('offline-banner')?.setAttribute('hidden', '');
+    Auth.getCurrentUser()
+      .then(user => { if (!user) return Auth.getOrCreateUser(); return user; })
+      .then(user => {
+        if (!user) return;
+        setActiveUser(user.id);
+        updateUserAvatar(user);
+        Sync.initOfflineHandling(user.id);
+        Sync.flushQueue(user.id);
+        const base = cached || JSON.parse(JSON.stringify(DEFAULT_STATE));
+        return Sync.loadAllData(user.id, base).then(stateData => {
+          State.init(stateData);
+          Storage.saveNow(stateData);
+          Sync.pushProfileState(State.get(), user.id);
+          setLanguageSilent(stateData.settings.language || cachedLang);
+          applyShellLanguage();
+          refreshCurrentView();
+        });
+      })
+      .catch(e => console.warn('[Boot] Sync failed:', e));
+  } else {
+    document.getElementById('app')?.removeAttribute('aria-busy');
+    showNameScreen();
+  }
 }
 
 function showNameScreen() {
