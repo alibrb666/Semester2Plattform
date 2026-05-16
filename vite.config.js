@@ -85,16 +85,19 @@ function aiAssistantPlugin() {
   });
 
   const buildSourceContext = (materials = [], mocks = []) => {
+    const MAX_PDF_CHARS_PER_SOURCE = 60000;
     const lines = [];
     materials.forEach((m, i) => {
       lines.push(`[Material ${i + 1}] subject=${m.subjectName || m.subjectId || '-'} kind=${m.kind || '-'} title=${m.title || '-'}`);
       if (m.note) lines.push(`note: ${m.note}`);
       if (m.pdfAttachment?.name) lines.push(`pdf: ${m.pdfAttachment.name}`);
+      if (m.pdfText) lines.push(`pdf content (truncated):\n${String(m.pdfText).slice(0, MAX_PDF_CHARS_PER_SOURCE)}`);
     });
     mocks.forEach((m, i) => {
       lines.push(`[Mock ${i + 1}] subject=${m.subjectName || m.subjectId || '-'} score=${m.score ?? '-'} max=${m.maxScore ?? '-'}`);
       if (m.note) lines.push(`note: ${m.note}`);
       if (m.pdfAttachment?.name) lines.push(`pdf: ${m.pdfAttachment.name}`);
+      if (m.pdfText) lines.push(`pdf content (truncated):\n${String(m.pdfText).slice(0, MAX_PDF_CHARS_PER_SOURCE)}`);
     });
     return lines.join('\n');
   };

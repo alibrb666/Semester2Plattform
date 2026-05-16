@@ -293,7 +293,31 @@ function openAssistantChat(materials, mocks, subjects) {
     log.scrollTop = log.scrollHeight;
   };
 
-  const stripItem = (m) => ({
+  const PDF_TEXT_LIMIT = 60000;
+
+  const extractPdfText = async (dataUrl) => {
+    if (!dataUrl || !window.pdfjsLib) return '';
+    try {
+      const base64 = dataUrl.split(',')[1] || '';
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const pdf = await window.pdfjsLib.getDocument({ data: bytes }).promise;
+      let out = '';
+      for (let p = 1; p <= pdf.numPages; p++) {
+        if (out.length >= PDF_TEXT_LIMIT) break;
+        const page = await pdf.getPage(p);
+        const content = await page.getTextContent();
+        const pageText = content.items.map(i => i.str).join(' ');
+        out += `\n--- Page ${p} ---\n${pageText}`;
+      }
+      return out.slice(0, PDF_TEXT_LIMIT);
+    } catch {
+      return '';
+    }
+  };
+
+  const stripItem = (m, pdfText = '') => ({
     id: m?.id,
     subjectId: m?.subjectId,
     subjectName: m?.subjectName,
@@ -302,13 +326,15 @@ function openAssistantChat(materials, mocks, subjects) {
     note: m?.note,
     score: m?.score,
     maxScore: m?.maxScore,
-    pdfAttachment: m?.pdfAttachment ? { name: m.pdfAttachment.name } : undefined
+    pdfAttachment: m?.pdfAttachment ? { name: m.pdfAttachment.name } : undefined,
+    pdfText: pdfText || undefined
   });
 
-  const withSelected = () => {
+  const withSelected = async () => {
     const selected = sources.find(s => s.id === srcSel.value);
     if (!selected) return { materials: [], mocks: [], sourceName: 'PDF' };
-    const slim = stripItem(selected.item);
+    const pdfText = await extractPdfText(selected.item?.pdfAttachment?.dataUrl);
+    const slim = stripItem(selected.item, pdfText);
     const payload = selected.type === 'material'
       ? { materials: [slim], mocks: [] }
       : { materials: [], mocks: [slim] };
@@ -329,15 +355,16 @@ function openAssistantChat(materials, mocks, subjects) {
   const askNow = async () => {
     const q = input.value.trim();
     if (!q) return;
-    const selected = withSelected();
-    if (!selected.materials.length && !selected.mocks.length) {
-      append('assistant', 'Please select a PDF source first.');
-      return;
-    }
     append('user', q);
     input.value = '';
-    append('assistant', `Using source: ${selected.sourceName}\n...`);
+    append('assistant', `Reading PDF...`);
     const placeholder = log.lastElementChild;
+    const selected = await withSelected();
+    if (!selected.materials.length && !selected.mocks.length) {
+      placeholder.textContent = 'Please select a PDF source first.';
+      return;
+    }
+    placeholder.textContent = `Using source: ${selected.sourceName}\n...`;
     try {
       const res = await fetch('/api/ai/ask', {
         method: 'POST',
@@ -357,15 +384,16 @@ function openAssistantChat(materials, mocks, subjects) {
   };
 
   const mockNow = async () => {
-    const selected = withSelected();
+    append('user', `Generate mock from selected PDF`);
+    append('assistant', 'Reading PDF...');
+    const placeholder = log.lastElementChild;
+    const selected = await withSelected();
     if (!selected.materials.length && !selected.mocks.length) {
-      append('assistant', 'Please select a PDF source first.');
+      placeholder.textContent = 'Please select a PDF source first.';
       return;
     }
     const subjectName = subjects.find(s => s.id === (selected.materials[0]?.subjectId || selected.mocks[0]?.subjectId))?.name || 'Subject';
-    append('user', `Generate mock from: ${selected.sourceName}`);
-    append('assistant', 'Generating...');
-    const placeholder = log.lastElementChild;
+    placeholder.textContent = 'Generating...';
     try {
       const res = await fetch('/api/ai/mock', {
         method: 'POST',
