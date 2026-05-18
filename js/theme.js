@@ -18,6 +18,6 @@ export const Theme = {
   },
 
   get() {
-    return document.documentElement.getAttribute('data-theme') || 'dark';
+    return document.documentElement.getAttribute('data-theme') || 'light';
   }
 };

@@ -8,7 +8,6 @@ import { loadHistory, appendMessage, clearHistory, listConversations } from '../
 export function renderMaterials(container) {
   const subjects = State.getSubjects();
   const items = State.getMaterials().slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  const mocks = State.getMocks();
 
   container.innerHTML = `
     <div class="view">
@@ -23,11 +22,11 @@ export function renderMaterials(container) {
       </div>
       <div class="card" style="padding:14px;margin-bottom:12px">
         <div class="section-header">
-          <div class="section-title">LLM Assistant</div>
+          <div class="section-title">Internal Data Assistant</div>
         </div>
         <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap">
-          <div style="font-size:12px;color:var(--text-tertiary)">Choose one PDF in chat. The assistant will use only that file.</div>
-          <button class="btn btn-primary btn-sm" id="btn-ai-chat">Open Chatbot</button>
+          <div style="font-size:12px;color:var(--text-tertiary)">Frage nach deinen internen Lern-Daten, Sessions, Fortschritt und App-Features.</div>
+          <button class="btn btn-primary btn-sm" id="btn-ai-chat">Open Assistant</button>
         </div>
       </div>
       <div id="materials-list"></div>
@@ -62,7 +61,7 @@ export function renderMaterials(container) {
 
   container.querySelector('#btn-add-material')?.addEventListener('click', () => openCreateModal(subjects, () => renderMaterials(container)));
   container.querySelector('#btn-ai-chat')?.addEventListener('click', () => {
-    openAssistantChat(State.getMaterials(), mocks, subjects);
+    openAssistantChat();
   });
   list.querySelectorAll('[data-material-id]').forEach(el => {
     el.addEventListener('click', e => {
@@ -190,87 +189,26 @@ function openDetail(item, subjects, onSave) {
   });
 }
 
-async function runAssistantAsk({ question, items, mocks }) {
-  const loading = Modal.open({
-    title: 'LLM Assistant',
-    body: `<div style="font-size:14px;color:var(--text-secondary)">Running PDF Q&A…</div>`
-  });
-  try {
-    const res = await fetch('/api/ai/ask', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, materials: items, mocks })
-    });
-    const data = await res.json();
-    loading.close();
-    if (!res.ok || !data?.ok) {
-      Modal.open({ title: 'LLM Assistant Error', body: `<pre style="white-space:pre-wrap">${data?.error || 'Unknown error'}</pre>` });
-      return;
-    }
-    Modal.open({ title: 'Assistant Answer', size: 'lg', body: `<pre style="white-space:pre-wrap;font-size:13px;line-height:1.5">${escapeHtml(data.text)}</pre>` });
-  } catch (e) {
-    loading.close();
-    Modal.open({ title: 'LLM Assistant Error', body: `<pre>${escapeHtml(String(e?.message || e))}</pre>` });
-  }
-}
-
-async function runAssistantMock({ subjectName, items, mocks }) {
-  const loading = Modal.open({
-    title: 'LLM Assistant',
-    body: `<div style="font-size:14px;color:var(--text-secondary)">Generating mock exam from PDFs…</div>`
-  });
-  try {
-    const res = await fetch('/api/ai/mock', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subjectName, difficulty: 'medium', materials: items, mocks })
-    });
-    const data = await res.json();
-    loading.close();
-    if (!res.ok || !data?.ok) {
-      Modal.open({ title: 'LLM Assistant Error', body: `<pre style="white-space:pre-wrap">${data?.error || 'Unknown error'}</pre>` });
-      return;
-    }
-    Modal.open({ title: `Mock Exam · ${subjectName}`, size: 'lg', body: `<pre style="white-space:pre-wrap;font-size:13px;line-height:1.5">${escapeHtml(data.text)}</pre>` });
-  } catch (e) {
-    loading.close();
-    Modal.open({ title: 'LLM Assistant Error', body: `<pre>${escapeHtml(String(e?.message || e))}</pre>` });
-  }
-}
-
 function escapeHtml(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function openAssistantChat(materials, mocks, subjects) {
-  const sources = collectPdfSources(materials, mocks, subjects);
+function openAssistantChat() {
+  const sourceId = 'internal:user-data-assistant';
   const modal = Modal.open({
-    title: 'LLM Chatbot',
+    title: 'Internal Data Assistant',
     size: 'lg',
     body: `
-      <div class="field">
-        <label for="ai-source">PDF Source</label>
-        <select class="select" id="ai-source">
-          ${sources.map(s => `<option value="${s.id}">${escapeHtml(s.label)}</option>`).join('')}
-        </select>
-      </div>
       <div class="field">
         <label for="ai-history">Previous chats</label>
         <select class="select" id="ai-history">
           <option value="">— loading… —</option>
         </select>
       </div>
-      <div class="field">
-        <label for="ai-model">LLM Model</label>
-        <select class="select" id="ai-model">
-          <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-        </select>
-      </div>
       <div id="ai-chat-log" style="height:44vh;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--bg-elevated);display:flex;flex-direction:column;gap:8px"></div>
-      <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-top:10px">
-        <input class="input" id="ai-chat-input" type="text" placeholder="Ask something from the selected PDF..." />
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px">
+        <input class="input" id="ai-chat-input" type="text" placeholder="Frag zu deinen internen Lern-Daten (z. B. Mathe-Statistik oder letzte Sessions)..." />
         <button class="btn btn-secondary btn-sm" id="ai-chat-ask">Ask</button>
-        <button class="btn btn-primary btn-sm" id="ai-chat-mock">Generate Mock</button>
       </div>
     `,
     footer: `<button class="btn btn-ghost btn-sm" id="ai-chat-clear">Clear history</button>
@@ -279,9 +217,7 @@ function openAssistantChat(materials, mocks, subjects) {
 
   const log = modal.el.querySelector('#ai-chat-log');
   const input = modal.el.querySelector('#ai-chat-input');
-  const srcSel = modal.el.querySelector('#ai-source');
   const historySel = modal.el.querySelector('#ai-history');
-  const modelSel = modal.el.querySelector('#ai-model');
 
   const append = (role, txt) => {
     const side = role === 'user' ? 'flex-end' : 'flex-start';
@@ -303,52 +239,27 @@ function openAssistantChat(materials, mocks, subjects) {
     return el;
   };
 
-  const HISTORY_TURNS = 6;
-  const historyBySource = new Map();
-
-  const renderHistory = (sourceId) => {
+  const renderHistory = async () => {
     log.innerHTML = '';
-    const msgs = historyBySource.get(sourceId) || [];
+    const rows = await loadHistory(sourceId).catch(() => []);
+    const msgs = rows.map(r => ({ role: r.role, content: r.content }));
     msgs.forEach(m => append(m.role, m.content));
+    if (!msgs.length) {
+      append('assistant', 'Ich arbeite nur mit deinen internen App-Daten. Frag z. B. "Was habe ich in Mathe gelernt?"');
+    }
   };
 
-  const recordMessage = (sourceId, role, content, pdfName) => {
-    if (!sourceId) return;
-    if (!historyBySource.has(sourceId)) historyBySource.set(sourceId, []);
-    historyBySource.get(sourceId).push({ role, content });
-    appendMessage(sourceId, role, content, pdfName)
+  const recordMessage = (role, content) => {
+    appendMessage(sourceId, role, content, 'Internal Data Assistant')
       .then(() => { if (role === 'assistant') refreshHistoryDropdown(); })
       .catch(() => {});
-  };
-
-  const historyForRequest = (sourceId) => {
-    const msgs = historyBySource.get(sourceId) || [];
-    return msgs.slice(-HISTORY_TURNS * 2);
-  };
-
-  const loadAndRenderHistory = async (sourceId) => {
-    if (!sourceId) return;
-    if (historyBySource.has(sourceId)) {
-      renderHistory(sourceId);
-      return;
-    }
-    historyBySource.set(sourceId, []);
-    try {
-      const rows = await loadHistory(sourceId);
-      historyBySource.set(sourceId, rows.map(r => ({ role: r.role, content: r.content })));
-    } catch {}
-    renderHistory(sourceId);
-    if (!historyBySource.get(sourceId).length) {
-      append('assistant', 'Select a PDF source and ask your question.');
-    }
   };
 
   const refreshHistoryDropdown = async () => {
     if (!historySel) return;
     try {
       const convs = await listConversations();
-      const activeIds = new Set(sources.map(s => s.id));
-      const items = convs.filter(c => activeIds.has(c.source_id));
+      const items = convs.filter(c => c.source_id === sourceId);
       const placeholderOpt = '<option value="">— start a new chat —</option>';
       if (!items.length) {
         historySel.innerHTML = placeholderOpt;
@@ -357,7 +268,7 @@ function openAssistantChat(materials, mocks, subjects) {
       historySel.innerHTML = placeholderOpt + items.map(c => {
         const time = new Date(c.last_at).toLocaleDateString();
         const snippet = (c.first_user_message || '').slice(0, 50).replace(/\s+/g, ' ');
-        const label = `${c.pdf_name || c.source_id} · ${time} · ${c.count} msgs · ${snippet}`;
+        const label = `Internal Data Assistant · ${time} · ${c.count} msgs · ${snippet}`;
         return `<option value="${escapeHtml(c.source_id)}">${escapeHtml(label)}</option>`;
       }).join('');
     } catch {
@@ -365,336 +276,62 @@ function openAssistantChat(materials, mocks, subjects) {
     }
   };
 
-  const PDF_TEXT_LIMIT = 40000;
-  const PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-  const pdfTextCache = new Map();
-
-  const waitForPdfJs = async () => {
-    if (window.pdfjsLib) return window.pdfjsLib;
-    for (let i = 0; i < 50; i++) {
-      await new Promise(r => setTimeout(r, 100));
-      if (window.pdfjsLib) return window.pdfjsLib;
-    }
-    throw new Error('PDF.js failed to load');
-  };
-
-  const extractPdfText = async (dataUrl) => {
-    if (!dataUrl) throw new Error('PDF has no data');
-    const pdfjs = await waitForPdfJs();
-    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-      pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
-    }
-    const comma = dataUrl.indexOf(',');
-    const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const pdf = await pdfjs.getDocument({ data: bytes }).promise;
-    let out = '';
-    for (let p = 1; p <= pdf.numPages; p++) {
-      if (out.length >= PDF_TEXT_LIMIT) break;
-      const page = await pdf.getPage(p);
-      const content = await page.getTextContent();
-      const pageText = content.items.map(i => i.str).join(' ');
-      out += `\n--- Page ${p} ---\n${pageText}`;
-    }
-    return out.slice(0, PDF_TEXT_LIMIT);
-  };
-
-  const stripItem = (m, pdfText = '') => ({
-    id: m?.id,
-    subjectId: m?.subjectId,
-    subjectName: m?.subjectName,
-    kind: m?.kind,
-    title: m?.title,
-    note: m?.note,
-    score: m?.score,
-    maxScore: m?.maxScore,
-    pdfAttachment: m?.pdfAttachment ? { name: m.pdfAttachment.name } : undefined,
-    pdfText: pdfText || undefined
-  });
-
-  const withSelected = async () => {
-    const selected = sources.find(s => s.id === srcSel.value);
-    if (!selected) return { materials: [], mocks: [], sourceName: 'PDF', error: 'No source selected.' };
-    let pdfText = pdfTextCache.get(selected.id) || '';
-    let extractError = '';
-    if (!pdfText) {
-      try {
-        pdfText = await extractPdfText(selected.item?.pdfAttachment?.dataUrl);
-        if (pdfText.trim()) {
-          pdfTextCache.set(selected.id, pdfText);
-        } else {
-          extractError = 'PDF contains no extractable text (image-only or empty).';
-        }
-      } catch (e) {
-        extractError = `PDF text extraction failed: ${e?.message || e}`;
-      }
-    }
-    const slim = stripItem(selected.item, pdfText);
-    const payload = selected.type === 'material'
-      ? { materials: [slim], mocks: [] }
-      : { materials: [], mocks: [slim] };
-    return { ...payload, sourceName: selected.fileName, error: extractError, pdfChars: pdfText.length };
-  };
-
-  const selectedModel = () => modelSel?.value || 'qwen/qwen3.6-flash';
-  const selectedProvider = () => providerByModel.get(modelSel?.value) || 'openrouter';
-
-  const parseAiResponse = async (res) => {
-    const raw = await res.text();
-    try {
-      return { data: JSON.parse(raw), raw };
-    } catch {
-      return { data: null, raw };
-    }
-  };
-
-  const TRANSIENT_ERROR_RE = /provider returned error|rate.?limit|timeout|429|502|503|504/i;
-
-  const callAi = async (url, payload, onAttempt) => {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      if (onAttempt) onAttempt(attempt);
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const { data, raw } = await parseAiResponse(res);
-      if (res.ok && data?.ok) return { ok: true, text: data.text };
-      const errMsg = data?.error || (raw ? `HTTP ${res.status}: ${raw.slice(0, 200)}` : `HTTP ${res.status}`);
-      if (attempt === 1 && TRANSIENT_ERROR_RE.test(errMsg)) {
-        await new Promise(r => setTimeout(r, 1500));
-        continue;
-      }
-      return { ok: false, error: errMsg };
-    }
-    return { ok: false, error: 'Unknown error' };
-  };
-
   const askNow = async () => {
     const q = input.value.trim();
     if (!q) return;
-    const sourceId = srcSel.value;
     append('user', q);
     input.value = '';
-    const placeholder = append('assistant', 'Reading PDF...');
-    const selected = await withSelected();
-    if (!selected.materials.length && !selected.mocks.length) {
-      placeholder.textContent = 'Please select a PDF source first.';
-      return;
-    }
-    if (selected.error) {
-      placeholder.textContent = `Cannot answer: ${selected.error}`;
-      return;
-    }
-    recordMessage(sourceId, 'user', q, selected.sourceName);
-    placeholder.textContent = `Using source: ${selected.sourceName} (${selected.pdfChars} chars)\n...`;
+    const placeholder = append('assistant', 'Prüfe deine internen Daten...');
+    recordMessage('user', q);
     try {
-      const result = await callAi('/api/ai/ask',
-        {
+      const res = await fetch('/api/ai/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           question: q,
-          materials: selected.materials,
-          mocks: selected.mocks,
-          model: selectedModel(),
-          provider: selectedProvider(),
-          history: historyForRequest(sourceId).slice(0, -1)
-        },
-        attempt => { if (attempt > 1) placeholder.textContent = `Retrying (provider was busy)...`; }
-      );
-      if (result.ok) {
-        placeholder.textContent = result.text;
-        recordMessage(sourceId, 'assistant', result.text, selected.sourceName);
-      } else {
-        placeholder.textContent = formatAiError(result.error, 'ask');
+          internalData: {
+            subjects: State.getSubjects(),
+            sessions: State.getSessions(),
+            todos: State.getTodos(),
+            mocks: State.getMocks(),
+            materials: State.getMaterials(),
+            errors: State.getErrors(),
+            settings: State.getSettings()
+          }
+        })
+      });
+      const raw = await res.text();
+      let data = null;
+      try { data = raw ? JSON.parse(raw) : null; } catch {}
+      if (!res.ok || !data?.ok) {
+        let fallback = raw?.slice(0, 180) || 'Unknown error';
+        if (res.status === 404) fallback = 'API route /api/ai/ask nicht gefunden (lokaler Dev-Server ohne API).';
+        placeholder.textContent = `Antwort fehlgeschlagen: ${data?.error || fallback}`;
+        return;
       }
+      placeholder.textContent = data.text;
+      recordMessage('assistant', data.text);
     } catch (e) {
-      placeholder.textContent = formatAiError(String(e?.message || e), 'ask');
-    }
-  };
-
-  const mockNow = async () => {
-    const sourceId = srcSel.value;
-    append('user', `Generate mock from selected PDF`);
-    const placeholder = append('assistant', 'Reading PDF...');
-    const selected = await withSelected();
-    if (!selected.materials.length && !selected.mocks.length) {
-      placeholder.textContent = 'Please select a PDF source first.';
-      return;
-    }
-    if (selected.error) {
-      placeholder.textContent = `Cannot generate mock: ${selected.error}`;
-      return;
-    }
-    const subjectName = subjects.find(s => s.id === (selected.materials[0]?.subjectId || selected.mocks[0]?.subjectId))?.name || 'Subject';
-    recordMessage(sourceId, 'user', `Generate mock from selected PDF`, selected.sourceName);
-    placeholder.textContent = `Generating from ${selected.sourceName} (${selected.pdfChars} chars)...`;
-    try {
-      const result = await callAi('/api/ai/mock',
-        {
-          subjectName,
-          difficulty: 'medium',
-          materials: selected.materials,
-          mocks: selected.mocks,
-          model: selectedModel(),
-          provider: selectedProvider(),
-          history: historyForRequest(sourceId).slice(0, -1)
-        },
-        attempt => { if (attempt > 1) placeholder.textContent = `Retrying (provider was busy)...`; }
-      );
-      if (result.ok) {
-        placeholder.textContent = result.text;
-        recordMessage(sourceId, 'assistant', result.text, selected.sourceName);
-      } else {
-        placeholder.textContent = formatAiError(result.error, 'mock');
-      }
-    } catch (e) {
-      placeholder.textContent = formatAiError(String(e?.message || e), 'mock');
+      placeholder.textContent = `Antwort fehlgeschlagen: ${String(e?.message || e)}`;
     }
   };
 
   modal.el.querySelector('#ai-chat-ask')?.addEventListener('click', askNow);
-  modal.el.querySelector('#ai-chat-mock')?.addEventListener('click', mockNow);
   modal.el.querySelector('#ai-chat-close')?.addEventListener('click', () => modal.close());
   modal.el.querySelector('#ai-chat-clear')?.addEventListener('click', async () => {
-    const sourceId = srcSel.value;
-    if (!sourceId) return;
-    if (!confirm('Chat history for this PDF will be deleted. Continue?')) return;
+    if (!confirm('Chat history for this assistant will be deleted. Continue?')) return;
     await clearHistory(sourceId).catch(() => {});
-    historyBySource.set(sourceId, []);
-    renderHistory(sourceId);
+    await renderHistory();
     append('assistant', 'History cleared.');
     refreshHistoryDropdown();
   });
-  srcSel?.addEventListener('change', () => loadAndRenderHistory(srcSel.value));
   historySel?.addEventListener('change', () => {
-    const target = historySel.value;
-    if (!target) return;
-    if (srcSel.value !== target) srcSel.value = target;
-    loadAndRenderHistory(target);
+    renderHistory();
   });
   input?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); askNow(); } });
 
-  if (sources.length) {
-    loadAndRenderHistory(srcSel.value);
-    refreshHistoryDropdown();
-  } else {
-    append('assistant', 'No PDF found. Upload PDFs in Materials or Mocks first.');
-  }
-
-  const providerByModel = new Map([['gemini-2.5-flash', 'gemini']]);
-
-  const fallbackGemini = [
-    { id: 'gemini-2.5-flash', provider: 'gemini' },
-    { id: 'gemini-2.5-flash-lite', provider: 'gemini' },
-    { id: 'gemini-2.5-pro', provider: 'gemini' }
-  ];
-  const fallbackOpenrouterFree = [
-    { id: 'google/gemma-4-31b-it:free', provider: 'openrouter' },
-    { id: 'google/gemma-4-26b-a4b-it:free', provider: 'openrouter' },
-    { id: 'deepseek/deepseek-v4-flash:free', provider: 'openrouter' },
-    { id: 'arcee-ai/trinity-large-thinking:free', provider: 'openrouter' },
-    { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', provider: 'openrouter' }
-  ];
-  const fallbackOpenrouterPaid = [
-    { id: 'qwen/qwen3.6-flash', provider: 'openrouter' },
-    { id: 'qwen/qwen3.5-flash', provider: 'openrouter' },
-    { id: 'openai/gpt-5.4', provider: 'openrouter' },
-    { id: 'openai/gpt-5.4-mini', provider: 'openrouter' },
-    { id: 'openai/gpt-5.5', provider: 'openrouter' },
-    { id: 'anthropic/claude-opus-4.7', provider: 'openrouter' },
-    { id: 'anthropic/claude-opus-4.6-fast', provider: 'openrouter' },
-    { id: 'google/gemini-3.1-flash-lite', provider: 'openrouter' },
-    { id: 'mistralai/mistral-medium-3.5', provider: 'openrouter' },
-    { id: 'deepseek/deepseek-v4-pro', provider: 'openrouter' },
-    { id: 'deepseek/deepseek-v4-flash', provider: 'openrouter' }
-  ];
-
-  const renderGroups = (gemini, orFree, orPaid) => {
-    if (!modelSel) return;
-    providerByModel.clear();
-    const opt = m => {
-      providerByModel.set(m.id, m.provider || 'openrouter');
-      return `<option value="${escapeHtml(m.id)}">${escapeHtml(m.id)}</option>`;
-    };
-    const geminiGroup = gemini.length
-      ? `<optgroup label="Google Gemini (free, ~1500/day)">${gemini.map(opt).join('')}</optgroup>`
-      : '';
-    const orFreeGroup = orFree.length
-      ? `<optgroup label="OpenRouter Free (shared 200/day)">${orFree.map(opt).join('')}</optgroup>`
-      : '';
-    const orPaidGroup = orPaid.length
-      ? `<optgroup label="OpenRouter Paid (credits required)">${orPaid.map(opt).join('')}</optgroup>`
-      : '';
-    modelSel.innerHTML = geminiGroup + orFreeGroup + orPaidGroup;
-  };
-
-  fetch('/api/ai/models')
-    .then(r => r.json())
-    .then(data => {
-      if (!data?.ok) return renderGroups(fallbackGemini, fallbackOpenrouterFree, fallbackOpenrouterPaid);
-      const gemini = (data.gemini || []).map(m => ({ id: m.id, provider: 'gemini' }));
-      const orFree = (data.openrouterFree || []).map(m => ({ id: m.id, provider: 'openrouter' }));
-      const orPaid = (data.openrouterPaid || []).map(m => ({ id: m.id, provider: 'openrouter' }));
-      renderGroups(gemini, orFree, orPaid);
-    })
-    .catch(() => renderGroups(fallbackGemini, fallbackOpenrouterFree, fallbackOpenrouterPaid));
+  renderHistory();
+  refreshHistoryDropdown();
   translateDom(modal.el);
   renderIcons(modal.el);
-}
-
-function collectPdfSources(materials, mocks, subjects) {
-  const sMap = new Map(subjects.map(s => [s.id, s.name]));
-  const out = [];
-  materials.forEach(m => {
-    if (!m?.pdfAttachment?.dataUrl) return;
-    out.push({
-      id: `mat:${m.id}`,
-      type: 'material',
-      item: m,
-      fileName: m.pdfAttachment.name || 'material.pdf',
-      label: `[Material] ${sMap.get(m.subjectId) || '-'} · ${m.title || '-'} · ${m.pdfAttachment.name || 'PDF'}`
-    });
-  });
-  mocks.forEach(m => {
-    if (!m?.pdfAttachment?.dataUrl) return;
-    out.push({
-      id: `mock:${m.id}`,
-      type: 'mock',
-      item: m,
-      fileName: m.pdfAttachment.name || 'mock.pdf',
-      label: `[Mock] ${sMap.get(m.subjectId) || '-'} · ${m.pdfAttachment.name || 'PDF'}`
-    });
-  });
-  return out;
-}
-
-function formatAiError(message, mode) {
-  const text = String(message || 'Unknown error');
-  const base = mode === 'mock' ? 'Mock generation failed' : 'AI answer failed';
-  if (/OPENROUTER_API_KEY missing on server/i.test(text)) {
-    return `${base}: Vercel is missing OPENROUTER_API_KEY.`;
-  }
-  if (/OPENAI_API_KEY missing on server/i.test(text)) {
-    return `${base}: Vercel is missing OPENAI_API_KEY.`;
-  }
-  if (/GEMINI_API_KEY missing on server/i.test(text)) {
-    return `${base}: Vercel is missing GEMINI_API_KEY. Get one at aistudio.google.com/apikey (free) and add it in Vercel env vars.`;
-  }
-  if (/not a valid model ID/i.test(text)) {
-    return `${base}: the selected model ID is not valid for the current provider.`;
-  }
-  if (/requires more credits/i.test(text) || /credit/i.test(text)) {
-    return `${base}: the OpenRouter account has insufficient credits or the token limit is too high.`;
-  }
-  if (/provider returned error/i.test(text)) {
-    return `${base}: upstream provider is busy or rate-limited. Try again, switch model (paid qwen/qwen3.6-flash is most reliable), or wait a minute.`;
-  }
-  if (/rate.?limit|429/i.test(text)) {
-    return `${base}: rate limit hit (free models are capped per minute/day). Switch to a paid model or wait.`;
-  }
-  if (/fetch/i.test(text) || /network/i.test(text)) {
-    return `${base}: network error while contacting the AI endpoint.`;
-  }
-  return `${base}: ${text}`;
 }

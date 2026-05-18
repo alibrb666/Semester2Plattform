@@ -109,7 +109,7 @@ function applyShellLanguage() {
 const DEFAULT_STATE = {
   version: 2,
   settings: {
-    name: 'Nutzer', theme: 'dark', sidebarCollapsed: false,
+    name: 'Nutzer', theme: 'light', sidebarCollapsed: false,
     dailyGoalMinutes: 240,
     weeklyGoals: {},
     soundEnabled: true, notificationsEnabled: false, streakFreezeUsed: false,
@@ -249,7 +249,6 @@ function showNameScreen() {
     finally { if (btn) { btn.disabled = false; } }
   };
 
-  let _cloudProfilesRequested = false;
   async function renderProfileScreen(mode = 'list', selected = null) {
     const profiles = Auth.listProfiles();
     const hasProfiles = profiles.length > 0;
@@ -301,6 +300,9 @@ function showNameScreen() {
         <p class="auth-hint">${t('profileHint')}</p>
       </div>`;
     renderIcons(screen);
+    if (!Auth.hasCloudConnection()) {
+      showAuthError('Supabase ENV fehlt: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY. Cloud-Profile können lokal nicht geladen werden.');
+    }
     screen.querySelector('#profile-lang')?.addEventListener('change', e => {
       setLanguage(e.target.value);
       renderProfileScreen(mode, selected);
@@ -342,13 +344,10 @@ function showNameScreen() {
     });
     setTimeout(() => screen.querySelector('input,button.profile-tile')?.focus(), 50);
 
-    if (!_cloudProfilesRequested) {
-      _cloudProfilesRequested = true;
-      const before = profiles.map(p => p.id).join(',');
-      const merged = await Auth.syncProfilesFromCloud();
-      const after = merged.map(p => p.id).join(',');
-      if (before !== after) renderProfileScreen(mode, selected && merged.find(p => p.id === selected.id));
-    }
+    const before = profiles.map(p => `${p.id}:${p.name}`).join(',');
+    const merged = await Auth.syncProfilesFromCloud();
+    const after = merged.map(p => `${p.id}:${p.name}`).join(',');
+    if (before !== after) renderProfileScreen(mode, selected && merged.find(p => p.id === selected.id));
   }
 
   renderProfileScreen();

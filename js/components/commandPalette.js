@@ -31,7 +31,10 @@ function getActions() {
     { id:'new-error', label:t('Neuer Fehlerbuch-Eintrag'), icon:'plus-circle',
       action: () => { Router.navigate('errors'); document.dispatchEvent(new CustomEvent('errors:new')); } },
     { id:'new-mock', label:t('Mock einloggen'), icon:'file-plus',
-      action: () => { Router.navigate('mocks'); document.dispatchEvent(new CustomEvent('mocks:new')); } },
+      action: () => {
+        Router.navigate('mocks');
+        setTimeout(() => document.getElementById('btn-add-mock')?.click(), 0);
+      } },
     { id:'theme', label:t('Theme umschalten'), icon:'sun-moon',
       action: () => Theme.toggle() },
     { id:'export', label:t('Daten exportieren'), icon:'download',

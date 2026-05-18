@@ -1,4 +1,4 @@
-import { supabase } from './supabase.js';
+import { supabase, isSupabaseFallback } from './supabase.js';
 import { t } from './i18n.js';
 
 const USER_KEY = 'learn.user_id';
@@ -105,23 +105,6 @@ function mergeProfiles(base = [], incoming = []) {
   return [...map.values()];
 }
 
-function dedupeProfilesByName(profiles = []) {
-  const byName = new Map();
-  const sorted = [...profiles].sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
-  sorted.forEach(p => {
-    const key = String(p?.name || '').trim().toLowerCase();
-    if (!key) return;
-    const prev = byName.get(key);
-    if (!prev) {
-      byName.set(key, p);
-      return;
-    }
-    const score = x => (x?.pinHash ? 2 : 0) + (x?.lastUsedAt ? 1 : 0);
-    if (score(p) > score(prev)) byName.set(key, p);
-  });
-  return [...byName.values()];
-}
-
 export const Auth = {
   listProfiles() {
     let profiles = readProfiles();
@@ -131,35 +114,43 @@ export const Auth = {
     if (savedId && savedName && !profiles.some(p => p.id === savedId)) {
       profiles.push({ id: savedId, name: savedName, pinHash: null, language: localStorage.getItem('learn.language') || 'de', lastUsedAt: new Date().toISOString() });
     }
-    profiles = dedupeProfilesByName(profiles);
+    profiles = mergeProfiles([], profiles);
     writeProfiles(profiles);
     return profiles.sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
   },
 
   async syncProfilesFromCloud() {
     const local = this.listProfiles();
+    if (isSupabaseFallback) return local;
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id,name,updated_at,settings')
-        .order('updated_at', { ascending: false })
-        .limit(300);
+      let data = null;
+      let error = null;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        const resp = await supabase
+          .from('profiles')
+          .select('id,name,updated_at,settings')
+          .order('updated_at', { ascending: false })
+          .limit(3000);
+        data = resp?.data;
+        error = resp?.error || null;
+        if (!error) break;
+      }
       if (error || !Array.isArray(data)) return local;
       const cloud = data
-        .filter(p => p?.id && p?.name)
+        .filter(p => p?.id && (p?.name || p?.settings?.name))
         .map(p => ({
           id: p.id,
-          name: p.name,
+          name: p.name || p?.settings?.name || 'Nutzer',
           pinHash: null,
           language: p?.settings?.language || 'de',
           lastUsedAt: p.updated_at || null
         }));
       if (!cloud.length) return local;
 
-      // Cloud is source of truth for visible accounts. Keep only cloud IDs,
-      // but preserve local metadata (PIN/language/lastUsedAt) for matching IDs.
+      // Keep all existing local profiles and merge cloud data on top.
+      // Never drop local-only profiles during sync.
       const localById = new Map(local.map(p => [p.id, p]));
-      const synced = dedupeProfilesByName(cloud.map(c => {
+      const merged = mergeProfiles(local, cloud.map(c => {
         const l = localById.get(c.id);
         return {
           ...c,
@@ -169,11 +160,16 @@ export const Auth = {
         };
       }));
 
+      const synced = mergeProfiles([], merged);
       writeProfiles(synced);
       return synced.sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
     } catch {
       return local;
     }
+  },
+
+  hasCloudConnection() {
+    return !isSupabaseFallback;
   },
 
   async signInWithUsername(name, options = {}) {

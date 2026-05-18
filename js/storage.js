@@ -66,7 +66,7 @@ export const Storage = {
   migrate(data, fromVersion) {
     if (fromVersion < 1) {
       data.version = 1;
-      data.settings = { name:'Lukas', theme:'dark', sidebarCollapsed:false,
+      data.settings = { name:'Lukas', theme:'light', sidebarCollapsed:false,
         dailyGoalMinutes:240, weeklyGoals:{klr:360,math:390,prog:360,kbs:300},
         soundEnabled:true, notificationsEnabled:false, streakFreezeUsed:false, language:'de', ...data.settings };
       data.subjects    = data.subjects    || [];

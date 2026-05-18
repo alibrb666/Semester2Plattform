@@ -33,7 +33,6 @@ export function renderMocks(container) {
   renderAll(container, subjects);
 
   container.querySelector('#btn-add-mock')?.addEventListener('click', () => openAddModal(subjects, () => renderAll(container, subjects)));
-  document.addEventListener('mocks:new', () => openAddModal(subjects, () => renderAll(container, subjects)), { once:true });
 }
 
 function renderAll(container, subjects) {
@@ -47,8 +46,11 @@ function renderAll(container, subjects) {
       <i data-lucide="file-check-2" style="width:48px;height:48px"></i>
       <div class="empty-title">${t('noMocksYet')}</div>
       <div class="empty-sub">${t('addFirstMockHint')}</div>
-      <button class="btn btn-primary btn-sm" onclick="this.dispatchEvent(new CustomEvent('mocks:new',{bubbles:true}))">${t('Mock eintragen')}</button>
+      <button class="btn btn-primary btn-sm" id="mocks-empty-add">${t('Mock eintragen')}</button>
     </div>`;
+    layout.querySelector('#mocks-empty-add')?.addEventListener('click', () => {
+      openAddModal(subjects, () => renderAll(container, subjects));
+    });
     return;
   }
 

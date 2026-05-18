@@ -74,15 +74,18 @@ export const State = {
   addMock(mock) {
     this.set({ mocks: [...this.getMocks(), mock] });
     Sync.pushMock(mock, _userId);
+    Sync.pushProfileState(_state, _userId);
   },
   updateMock(id, patch) {
     this.set({ mocks: this.getMocks().map(m => m.id === id ? { ...m, ...patch } : m) });
     const updated = this.getMocks().find(m => m.id === id);
     if (updated) Sync.pushMock(updated, _userId);
+    Sync.pushProfileState(_state, _userId);
   },
   removeMock(id) {
     this.set({ mocks: this.getMocks().filter(m => m.id !== id) });
     Sync.deleteMock(id, _userId);
+    Sync.pushProfileState(_state, _userId);
   },
 
   addTodo(todo) {
