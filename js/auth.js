@@ -9,6 +9,18 @@ const BLOCKED_PROFILES_KEY = 'learn.blocked_profile_ids';
 const KEEP_USERNAMES = new Set(['Ali', 'YNS']);
 const ALI_PIN = '2614';
 
+function normalizedName(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+function isAliName(name) {
+  return normalizedName(name) === 'ali';
+}
+
+function isYnsName(name) {
+  return normalizedName(name) === 'yns';
+}
+
 async function usernameToId(username) {
   const name = String(username || 'Nutzer').trim() || 'Nutzer';
   const data = new TextEncoder().encode(`lernplattform:${name}`);
@@ -232,14 +244,17 @@ export const Auth = {
     const id = await usernameToId(username);
     const language = options.language || 'de';
     const rawPin = String(options.pin || '').trim();
-    if (username === 'Ali' && rawPin !== ALI_PIN) throw new Error(t('wrongPin'));
-    if (username === 'YNS' && rawPin === ALI_PIN) throw new Error(t('wrongPin'));
-    const effectivePin = username === 'Ali' ? ALI_PIN : (rawPin || null);
+    if (isAliName(username) && rawPin !== ALI_PIN) throw new Error(t('wrongPin'));
+    if (isYnsName(username) && rawPin === ALI_PIN) throw new Error(t('wrongPin'));
+    const effectivePin = isAliName(username) ? ALI_PIN : (rawPin || null);
     const pinHash = effectivePin ? await hashPin(id, effectivePin) : options.pinHash || null;
     const existing = readProfiles().find(p => p.id === id);
+    const isAli = isAliName(username);
     if (existing?.pinHash) {
       if (!pinHash) throw new Error(t('profileExists'));
-      if (existing.pinHash !== pinHash) throw new Error(t('wrongPin'));
+      // Heal stale local PIN hashes for Ali automatically.
+      if (existing.pinHash !== pinHash && !isAli) throw new Error(t('wrongPin'));
+      if (existing.pinHash !== pinHash && isAli) existing.pinHash = pinHash;
     } else if (existing && pinHash) {
       // Upgrade legacy profiles without PIN when the user logs in with one.
       existing.pinHash = pinHash;
@@ -267,8 +282,16 @@ export const Auth = {
     const canonicalId = await usernameToId(profile.name);
     const localCanonical = readProfiles().find(p => p.id === canonicalId);
     const active = localCanonical || { ...profile, id: canonicalId };
-    if (active.name === 'Ali' && String(pin || '').trim() !== ALI_PIN) throw new Error(t('wrongPin'));
-    if (active.name === 'YNS' && String(pin || '').trim() === ALI_PIN) throw new Error(t('wrongPin'));
+    const cleanPin = String(pin || '').trim();
+    const isAli = isAliName(active.name);
+    const isYns = isYnsName(active.name);
+    if (isAli && cleanPin !== ALI_PIN) throw new Error(t('wrongPin'));
+    if (isYns && cleanPin === ALI_PIN) throw new Error(t('wrongPin'));
+    // For Ali, always enforce canonical pin hash so stale legacy hashes cannot lock the account.
+    if (isAli) {
+      const aliHash = await hashPin(canonicalId, ALI_PIN);
+      active.pinHash = aliHash;
+    }
     if (active.pinHash) {
       const actual = await hashPin(canonicalId, pin);
       if (actual !== active.pinHash) throw new Error(t('wrongPin'));
