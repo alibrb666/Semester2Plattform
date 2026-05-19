@@ -14,7 +14,11 @@ function safeSegment(v) {
 export async function uploadPdfFile({ userId, subjectId = 'general', file }) {
   if (!file) throw new Error('Datei fehlt.');
   if (isSupabaseFallback) throw new Error('Cloud ist nicht aktiv.');
-  const uid = safeSegment(userId);
+  const { data, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  const authUid = data?.user?.id;
+  const uid = safeSegment(authUid || userId);
+  if (!uid) throw new Error('Keine gültige Nutzer-ID gefunden.');
   const sid = safeSegment(subjectId || 'general');
   const path = `${uid}/${sid}/${crypto.randomUUID()}${extFromName(file.name)}`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
@@ -42,4 +46,3 @@ export async function getPdfPreviewUrl(attachment) {
   if (error) throw error;
   return data?.signedUrl || null;
 }
-
