@@ -241,6 +241,22 @@ function rowToReview(r) {
   };
 }
 
+function mergeByIdPreferNewest(remote = [], local = []) {
+  const map = new Map();
+  [...local, ...remote].forEach(item => {
+    if (!item?.id) return;
+    const prev = map.get(item.id);
+    if (!prev) {
+      map.set(item.id, item);
+      return;
+    }
+    const prevTs = Date.parse(prev.updatedAt || prev.createdAt || 0) || 0;
+    const nextTs = Date.parse(item.updatedAt || item.createdAt || 0) || 0;
+    map.set(item.id, nextTs >= prevTs ? item : prev);
+  });
+  return [...map.values()];
+}
+
 /* ── Profile (settings) ────────────────────────────────────── */
 function splitProfileSettings(raw = {}) {
   const { [APP_DATA_KEY]: appData = {}, ...settings } = raw || {};
@@ -314,9 +330,12 @@ export async function loadAllData(userId, defaultState) {
     const remoteSubjects = (subjectsRaw || []).map(rowToSubject);
     const { settings: profileSettings, appData } = splitProfileSettings(profile?.settings || {});
     const subjectPdfById = appData.subjectPdfById || {};
+    const localSubjectById = new Map((defaultState.subjects || []).map(s => [s.id, s]));
     const withSubjectPdfs = (remoteSubjects.length ? remoteSubjects : defaultState.subjects).map(s => ({
       ...s,
-      pdfs: Array.isArray(subjectPdfById[s.id]) ? subjectPdfById[s.id] : (Array.isArray(s.pdfs) ? s.pdfs : [])
+      pdfs: Array.isArray(subjectPdfById[s.id])
+        ? subjectPdfById[s.id]
+        : (Array.isArray(localSubjectById.get(s.id)?.pdfs) ? localSubjectById.get(s.id).pdfs : (Array.isArray(s.pdfs) ? s.pdfs : []))
     }));
     const subjects = withSubjectPdfs;
 
@@ -350,6 +369,11 @@ export async function loadAllData(userId, defaultState) {
       pdfAttachment: mockPdfById[m.id] || null
     }));
 
+    const mergedMaterials = mergeByIdPreferNewest(
+      Array.isArray(appData.materials) ? appData.materials : [],
+      Array.isArray(defaultState.materials) ? defaultState.materials : []
+    );
+
     return {
       ...defaultState,
       settings,
@@ -357,7 +381,7 @@ export async function loadAllData(userId, defaultState) {
       schedulePrefs: appData.schedulePrefs || defaultState.schedulePrefs,
       scheduleBlocks: appData.scheduleBlocks || defaultState.scheduleBlocks || [],
       achievements: appData.achievements || defaultState.achievements || {},
-      materials: appData.materials || defaultState.materials || [],
+      materials: mergedMaterials,
       sessions:      (sessionsRaw || []).map(rowToSession),
       todos:         (todosRaw    || []).map(rowToTodo),
       errorLog:      (errorsRaw   || []).map(rowToError),
