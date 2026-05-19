@@ -7,6 +7,7 @@ const USERNAME_KEY = 'learn.username';
 const PROFILE_KEY = 'learn.profiles';
 const BLOCKED_PROFILES_KEY = 'learn.blocked_profile_ids';
 const KEEP_USERNAMES = new Set(['Ali', 'YNS']);
+const ALI_PIN = '2614';
 
 async function usernameToId(username) {
   const name = String(username || 'Nutzer').trim() || 'Nutzer';
@@ -230,7 +231,11 @@ export const Auth = {
     if (!username) throw new Error(t('nameRequired'));
     const id = await usernameToId(username);
     const language = options.language || 'de';
-    const pinHash = options.pin ? await hashPin(id, options.pin) : options.pinHash || null;
+    const rawPin = String(options.pin || '').trim();
+    if (username === 'Ali' && rawPin !== ALI_PIN) throw new Error(t('wrongPin'));
+    if (username === 'YNS' && rawPin === ALI_PIN) throw new Error(t('wrongPin'));
+    const effectivePin = username === 'Ali' ? ALI_PIN : (rawPin || null);
+    const pinHash = effectivePin ? await hashPin(id, effectivePin) : options.pinHash || null;
     const existing = readProfiles().find(p => p.id === id);
     if (existing?.pinHash) {
       if (!pinHash) throw new Error(t('profileExists'));
@@ -262,6 +267,8 @@ export const Auth = {
     const canonicalId = await usernameToId(profile.name);
     const localCanonical = readProfiles().find(p => p.id === canonicalId);
     const active = localCanonical || { ...profile, id: canonicalId };
+    if (active.name === 'Ali' && String(pin || '').trim() !== ALI_PIN) throw new Error(t('wrongPin'));
+    if (active.name === 'YNS' && String(pin || '').trim() === ALI_PIN) throw new Error(t('wrongPin'));
     if (active.pinHash) {
       const actual = await hashPin(canonicalId, pin);
       if (actual !== active.pinHash) throw new Error(t('wrongPin'));
