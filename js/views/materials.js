@@ -42,18 +42,46 @@ export function renderMaterials(container) {
       <div class="empty-sub">${t('noMaterialsHint')}</div>
     </div>`;
   } else {
-    list.innerHTML = items.map(item => {
-      const sub = subjects.find(s => s.id === item.subjectId);
-      const typeLabel = item.kind === 'task' ? t('task') : t('material');
-      return `<div class="session-item" data-material-id="${item.id}" style="cursor:pointer">
-        <div class="session-color-bar" style="background:var(--subject-${item.subjectId})"></div>
-        <div class="session-info">
-          <div class="session-note">${item.title}</div>
-          <div class="session-subject">${sub?.name || '—'} · ${typeLabel}${item.dueDate ? ` · ${formatDateShort(item.dueDate)}` : ''}</div>
-          ${item.note ? `<div class="session-note" style="font-size:12px;color:var(--text-tertiary)">${item.note}</div>` : ''}
+    const groups = [];
+    subjects.forEach(sub => {
+      const entries = items.filter(item => item.subjectId === sub.id);
+      if (entries.length) groups.push({ subject: sub, entries });
+    });
+    const withoutSubject = items.filter(item => !subjects.some(s => s.id === item.subjectId));
+    if (withoutSubject.length) groups.push({ subject: null, entries: withoutSubject });
+
+    list.innerHTML = groups.map(group => {
+      const subjectName = group.subject?.name || 'Ohne Fach';
+      const subjectColor = group.subject ? `var(--subject-${group.subject.id})` : 'var(--text-tertiary)';
+      const pdfs = group.entries.filter(item => item.pdfAttachment?.dataUrl);
+      return `<div class="card" style="padding:14px;margin-bottom:12px">
+        <div class="section-header" style="margin-bottom:10px">
+          <div class="section-title" style="display:flex;align-items:center;gap:8px">
+            <span style="width:10px;height:10px;border-radius:50%;background:${subjectColor}"></span>
+            ${subjectName}
+          </div>
         </div>
-        <div class="session-meta">
-          ${item.pdfAttachment?.dataUrl ? `<button class="btn btn-secondary btn-sm" type="button" data-pdf-preview="${item.id}">PDF</button>` : ''}
+        <div style="margin-bottom:10px">
+          <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:6px">PDFs</div>
+          ${pdfs.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${pdfs.map(item => `<button class="btn btn-secondary btn-sm" type="button" data-pdf-preview="${item.id}">${escapeHtml(item.pdfAttachment?.name || item.title)}</button>`).join('')}
+          </div>` : `<div style="font-size:12px;color:var(--text-tertiary)">Keine PDFs hochgeladen.</div>`}
+        </div>
+        <div>
+          ${group.entries.map(item => {
+            const typeLabel = item.kind === 'task' ? t('task') : t('material');
+            return `<div class="session-item" data-material-id="${item.id}" style="cursor:pointer">
+              <div class="session-color-bar" style="background:${subjectColor}"></div>
+              <div class="session-info">
+                <div class="session-note">${item.title}</div>
+                <div class="session-subject">${typeLabel}${item.dueDate ? ` · ${formatDateShort(item.dueDate)}` : ''}</div>
+                ${item.note ? `<div class="session-note" style="font-size:12px;color:var(--text-tertiary)">${item.note}</div>` : ''}
+              </div>
+              <div class="session-meta">
+                ${item.pdfAttachment?.dataUrl ? `<button class="btn btn-secondary btn-sm" type="button" data-pdf-preview="${item.id}">PDF</button>` : ''}
+              </div>
+            </div>`;
+          }).join('')}
         </div>
       </div>`;
     }).join('');

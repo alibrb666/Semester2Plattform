@@ -5,8 +5,6 @@ const USER_KEY = 'learn.user_id';
 const AUTH_MODE_KEY = 'learn.auth_mode';
 const USERNAME_KEY = 'learn.username';
 const PROFILE_KEY = 'learn.profiles';
-const ALLOWED_USERNAMES = new Set(['Ali', 'YNS']);
-const ALI_PIN = '2614';
 
 async function usernameToId(username) {
   const name = String(username || 'Nutzer').trim() || 'Nutzer';
@@ -107,10 +105,6 @@ function mergeProfiles(base = [], incoming = []) {
   return [...map.values()];
 }
 
-function filterAllowedProfiles(profiles = []) {
-  return profiles.filter(p => ALLOWED_USERNAMES.has(String(p?.name || '').trim()));
-}
-
 export const Auth = {
   listProfiles() {
     let profiles = readProfiles();
@@ -121,7 +115,6 @@ export const Auth = {
       profiles.push({ id: savedId, name: savedName, pinHash: null, language: localStorage.getItem('learn.language') || 'de', lastUsedAt: new Date().toISOString() });
     }
     profiles = mergeProfiles([], profiles);
-    profiles = filterAllowedProfiles(profiles);
     writeProfiles(profiles);
     return profiles.sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
   },
@@ -152,13 +145,12 @@ export const Auth = {
           language: p?.settings?.language || 'de',
           lastUsedAt: p.updated_at || null
         }));
-      const allowedCloud = filterAllowedProfiles(cloud);
-      if (!allowedCloud.length) return local;
+      if (!cloud.length) return local;
 
       // Keep all existing local profiles and merge cloud data on top.
       // Never drop local-only profiles during sync.
       const localById = new Map(local.map(p => [p.id, p]));
-      const merged = mergeProfiles(local, allowedCloud.map(c => {
+      const merged = mergeProfiles(local, cloud.map(c => {
         const l = localById.get(c.id);
         return {
           ...c,
@@ -168,7 +160,7 @@ export const Auth = {
         };
       }));
 
-      const synced = filterAllowedProfiles(mergeProfiles([], merged));
+      const synced = mergeProfiles([], merged);
       writeProfiles(synced);
       return synced.sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
     } catch {
@@ -183,12 +175,9 @@ export const Auth = {
   async signInWithUsername(name, options = {}) {
     const username = String(name || '').trim();
     if (!username) throw new Error(t('nameRequired'));
-    if (!ALLOWED_USERNAMES.has(username)) throw new Error('Nur Ali und YNS sind erlaubt.');
     const id = await usernameToId(username);
     const language = options.language || 'de';
-    if (username === 'Ali' && String(options.pin || '').trim() !== ALI_PIN) throw new Error(t('wrongPin'));
-    const effectivePin = username === 'Ali' ? ALI_PIN : options.pin;
-    const pinHash = effectivePin ? await hashPin(id, effectivePin) : options.pinHash || null;
+    const pinHash = options.pin ? await hashPin(id, options.pin) : options.pinHash || null;
     const existing = readProfiles().find(p => p.id === id);
     if (existing?.pinHash) {
       if (!pinHash) throw new Error(t('profileExists'));
