@@ -21,8 +21,15 @@ function isYnsName(name) {
   return normalizedName(name) === 'yns';
 }
 
+function canonicalUsername(name) {
+  const clean = String(name || '').trim();
+  if (isAliName(clean)) return 'Ali';
+  if (isYnsName(clean)) return 'YNS';
+  return clean || 'Nutzer';
+}
+
 async function usernameToId(username) {
-  const name = String(username || 'Nutzer').trim() || 'Nutzer';
+  const name = canonicalUsername(username);
   const data = new TextEncoder().encode(`lernplattform:${name}`);
   const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', data));
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
@@ -239,7 +246,7 @@ export const Auth = {
   },
 
   async signInWithUsername(name, options = {}) {
-    const username = String(name || '').trim();
+    const username = canonicalUsername(name);
     if (!username) throw new Error(t('nameRequired'));
     const id = await usernameToId(username);
     const language = options.language || 'de';
