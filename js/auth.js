@@ -258,16 +258,19 @@ export const Auth = {
   },
 
   async unlockProfile(profile, pin) {
-    if (!profile?.id) throw new Error('Profil fehlt.');
-    if (profile.pinHash) {
-      const actual = await hashPin(profile.id, pin);
-      if (actual !== profile.pinHash) throw new Error(t('wrongPin'));
+    if (!profile?.name) throw new Error('Profil fehlt.');
+    const canonicalId = await usernameToId(profile.name);
+    const localCanonical = readProfiles().find(p => p.id === canonicalId);
+    const active = localCanonical || { ...profile, id: canonicalId };
+    if (active.pinHash) {
+      const actual = await hashPin(canonicalId, pin);
+      if (actual !== active.pinHash) throw new Error(t('wrongPin'));
     }
-    localStorage.setItem(USER_KEY, profile.id);
-    localStorage.setItem(USERNAME_KEY, profile.name);
+    localStorage.setItem(USER_KEY, canonicalId);
+    localStorage.setItem(USERNAME_KEY, active.name);
     localStorage.setItem(AUTH_MODE_KEY, 'username');
-    upsertLocalProfile(profile);
-    return { id: profile.id, user_metadata: { name: profile.name }, isUsernameUser: true };
+    upsertLocalProfile(active);
+    return { id: canonicalId, user_metadata: { name: active.name }, isUsernameUser: true };
   },
 
   async setProfilePin(profile, pin) {
