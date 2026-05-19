@@ -77,6 +77,23 @@ function applyLegacyTestCleanup(profiles = []) {
   return visible;
 }
 
+function dedupeProfilesByName(profiles = []) {
+  const byName = new Map();
+  for (const p of profiles) {
+    const name = String(p?.name || '').trim();
+    if (!name) continue;
+    const prev = byName.get(name);
+    if (!prev) {
+      byName.set(name, p);
+      continue;
+    }
+    const prevTs = Date.parse(prev.lastUsedAt || 0) || 0;
+    const nextTs = Date.parse(p.lastUsedAt || 0) || 0;
+    if (nextTs >= prevTs) byName.set(name, p);
+  }
+  return [...byName.values()];
+}
+
 function upsertLocalProfile(profile) {
   const profiles = readProfiles();
   const idx = profiles.findIndex(p => p.id === profile.id);
@@ -149,7 +166,7 @@ export const Auth = {
     if (savedId && savedName && !profiles.some(p => p.id === savedId)) {
       profiles.push({ id: savedId, name: savedName, pinHash: null, language: localStorage.getItem('learn.language') || 'de', lastUsedAt: new Date().toISOString() });
     }
-    profiles = applyLegacyTestCleanup(mergeProfiles([], profiles));
+    profiles = dedupeProfilesByName(applyLegacyTestCleanup(mergeProfiles([], profiles)));
     writeProfiles(profiles);
     return profiles.sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
   },
@@ -196,7 +213,7 @@ export const Auth = {
         };
       }));
 
-      const synced = applyLegacyTestCleanup(mergeProfiles([], merged));
+      const synced = dedupeProfilesByName(applyLegacyTestCleanup(mergeProfiles([], merged)));
       writeProfiles(synced);
       return synced.sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
     } catch {
