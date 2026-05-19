@@ -5,6 +5,8 @@ const USER_KEY = 'learn.user_id';
 const AUTH_MODE_KEY = 'learn.auth_mode';
 const USERNAME_KEY = 'learn.username';
 const PROFILE_KEY = 'learn.profiles';
+const BLOCKED_PROFILES_KEY = 'learn.blocked_profile_ids';
+const KEEP_USERNAMES = new Set(['Ali', 'YNS']);
 
 async function usernameToId(username) {
   const name = String(username || 'Nutzer').trim() || 'Nutzer';
@@ -40,6 +42,39 @@ function writeProfiles(profiles) {
       lastUsedAt: p.lastUsedAt || null
     }));
   localStorage.setItem(PROFILE_KEY, JSON.stringify(clean));
+}
+
+function readBlockedProfileIds() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(BLOCKED_PROFILES_KEY) || '[]');
+    return new Set(Array.isArray(raw) ? raw.filter(Boolean) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeBlockedProfileIds(ids) {
+  localStorage.setItem(BLOCKED_PROFILES_KEY, JSON.stringify([...ids]));
+}
+
+function shouldKeepProfile(profile) {
+  return KEEP_USERNAMES.has(String(profile?.name || '').trim());
+}
+
+function applyLegacyTestCleanup(profiles = []) {
+  const blocked = readBlockedProfileIds();
+  const visible = [];
+  for (const p of profiles) {
+    if (!p?.id || !p?.name) continue;
+    if (blocked.has(p.id)) continue;
+    if (shouldKeepProfile(p)) {
+      visible.push(p);
+      continue;
+    }
+    blocked.add(p.id);
+  }
+  writeBlockedProfileIds(blocked);
+  return visible;
 }
 
 function upsertLocalProfile(profile) {
@@ -114,7 +149,7 @@ export const Auth = {
     if (savedId && savedName && !profiles.some(p => p.id === savedId)) {
       profiles.push({ id: savedId, name: savedName, pinHash: null, language: localStorage.getItem('learn.language') || 'de', lastUsedAt: new Date().toISOString() });
     }
-    profiles = mergeProfiles([], profiles);
+    profiles = applyLegacyTestCleanup(mergeProfiles([], profiles));
     writeProfiles(profiles);
     return profiles.sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
   },
@@ -145,12 +180,13 @@ export const Auth = {
           language: p?.settings?.language || 'de',
           lastUsedAt: p.updated_at || null
         }));
-      if (!cloud.length) return local;
+      const cleanedCloud = applyLegacyTestCleanup(cloud);
+      if (!cleanedCloud.length) return local;
 
       // Keep all existing local profiles and merge cloud data on top.
       // Never drop local-only profiles during sync.
       const localById = new Map(local.map(p => [p.id, p]));
-      const merged = mergeProfiles(local, cloud.map(c => {
+      const merged = mergeProfiles(local, cleanedCloud.map(c => {
         const l = localById.get(c.id);
         return {
           ...c,
@@ -160,7 +196,7 @@ export const Auth = {
         };
       }));
 
-      const synced = mergeProfiles([], merged);
+      const synced = applyLegacyTestCleanup(mergeProfiles([], merged));
       writeProfiles(synced);
       return synced.sort((a, b) => String(b.lastUsedAt || '').localeCompare(String(a.lastUsedAt || '')));
     } catch {
