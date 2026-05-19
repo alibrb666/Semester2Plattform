@@ -35,7 +35,8 @@ export function renderMaterials(container) {
   const list = container.querySelector('#materials-list');
   if (!list) return;
 
-  if (!items.length) {
+  const hasSubjectPdfs = subjects.some(s => Array.isArray(s.pdfs) && s.pdfs.some(p => p?.dataUrl));
+  if (!items.length && !hasSubjectPdfs) {
     list.innerHTML = `<div class="empty-state">
       <i data-lucide="folder-open" style="width:48px;height:48px"></i>
       <div class="empty-title">${t('noMaterialsYet')}</div>
@@ -45,16 +46,17 @@ export function renderMaterials(container) {
     const groups = [];
     subjects.forEach(sub => {
       const entries = items.filter(item => item.subjectId === sub.id);
-      if (entries.length) groups.push({ subject: sub, entries });
+      const subjectPdfs = Array.isArray(sub.pdfs) ? sub.pdfs.filter(p => p?.dataUrl) : [];
+      if (entries.length || subjectPdfs.length) groups.push({ subject: sub, entries, subjectPdfs });
     });
     const withoutSubject = items.filter(item => !subjects.some(s => s.id === item.subjectId));
-    if (withoutSubject.length) groups.push({ subject: null, entries: withoutSubject });
+    if (withoutSubject.length) groups.push({ subject: null, entries: withoutSubject, subjectPdfs: [] });
 
     list.innerHTML = groups.map(group => {
       const subjectName = group.subject?.name || 'Ohne Fach';
       const subjectColor = group.subject ? `var(--subject-${group.subject.id})` : 'var(--text-tertiary)';
       const materialPdfs = group.entries.filter(item => item.pdfAttachment?.dataUrl);
-      const subjectPdfs = Array.isArray(group.subject?.pdfs) ? group.subject.pdfs.filter(p => p?.dataUrl) : [];
+      const subjectPdfs = group.subjectPdfs || [];
       return `<div class="card" style="padding:14px;margin-bottom:12px">
         <div class="section-header" style="margin-bottom:10px">
           <div class="section-title" style="display:flex;align-items:center;gap:8px">
