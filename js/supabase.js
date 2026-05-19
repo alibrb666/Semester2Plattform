@@ -19,6 +19,14 @@ function createFallbackClient() {
   };
   return {
     from() { return query; },
+    storage: {
+      from() {
+        return {
+          async upload() { return { data: null, error: new Error('Supabase Storage nicht verfügbar (Fallback).') }; },
+          async createSignedUrl() { return { data: null, error: new Error('Supabase Storage nicht verfügbar (Fallback).') }; }
+        };
+      }
+    },
     auth: {
       async getSession() { return { data: { session: null }, error: null }; },
       async signInAnonymously() { return { data: { user: { id: 'local-anon', user_metadata: {} } }, error: null }; },

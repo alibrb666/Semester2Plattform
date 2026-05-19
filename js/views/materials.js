@@ -4,6 +4,7 @@ import { Modal } from '../components/modal.js';
 import { Toast } from '../components/toast.js';
 import { t, translateDom } from '../i18n.js';
 import { loadHistory, appendMessage, clearHistory, listConversations } from '../chatHistory.js';
+import { uploadPdfFile, getPdfPreviewUrl } from '../fileStorage.js';
 
 export function renderMaterials(container) {
   const subjects = State.getSubjects();
@@ -103,34 +104,38 @@ export function renderMaterials(container) {
     });
   });
   list.querySelectorAll('[data-pdf-preview-material]').forEach(btn => {
-    btn.addEventListener('click', e => {
+    btn.addEventListener('click', async e => {
       e.stopPropagation();
       const item = State.getMaterials().find(m => m.id === btn.dataset.pdfPreviewMaterial);
-      if (!item?.pdfAttachment?.dataUrl) {
+      let url = null;
+      try { url = await getPdfPreviewUrl(item?.pdfAttachment); } catch {}
+      if (!url) {
         Toast.error('PDF fehlt', 'Die Datei ist nicht mehr lokal verfügbar.');
         return;
       }
       Modal.open({
-        title: item.pdfAttachment.name || 'PDF',
+        title: item?.pdfAttachment?.name || 'PDF',
         size: 'lg',
-        body: `<iframe src="${item.pdfAttachment.dataUrl}" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:10px"></iframe>`
+        body: `<iframe src="${url}" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:10px"></iframe>`
       });
     });
   });
   list.querySelectorAll('[data-pdf-preview-subject]').forEach(btn => {
-    btn.addEventListener('click', e => {
+    btn.addEventListener('click', async e => {
       e.stopPropagation();
       const subject = subjects.find(s => s.id === btn.dataset.pdfPreviewSubject);
       const idx = Number(btn.dataset.pdfIndex);
       const pdf = subject?.pdfs?.[idx];
-      if (!pdf?.dataUrl) {
+      let url = null;
+      try { url = await getPdfPreviewUrl(pdf); } catch {}
+      if (!url) {
         Toast.error('PDF fehlt', 'Die Datei ist nicht mehr lokal verfügbar.');
         return;
       }
       Modal.open({
         title: pdf.name || 'PDF',
         size: 'lg',
-        body: `<iframe src="${pdf.dataUrl}" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:10px"></iframe>`
+        body: `<iframe src="${url}" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:10px"></iframe>`
       });
     });
   });
@@ -180,10 +185,11 @@ function openCreateModal(subjects, onSave) {
 
   modal.el.querySelector('#mat-cancel')?.addEventListener('click', () => modal.close());
   modal.el.querySelector('#mat-save')?.addEventListener('click', () => {
+    const doSave = async () => {
     const title = modal.el.querySelector('#mat-title')?.value.trim();
     if (!title) return;
     const pdfFile = modal.el.querySelector('#mat-pdf')?.files?.[0] || null;
-    const create = pdfAttachment => ({
+    const create = (pdfAttachment) => ({
       id: uuid(),
       subjectId: modal.el.querySelector('#mat-subj')?.value,
       kind: modal.el.querySelector('#mat-kind')?.value || 'material',
@@ -200,10 +206,18 @@ function openCreateModal(subjects, onSave) {
       onSave?.();
     };
     if (!pdfFile) return finish(null);
-    const reader = new FileReader();
-    reader.onload = () => finish({ name: pdfFile.name, dataUrl: String(reader.result || '') });
-    reader.onerror = () => finish(null);
-    reader.readAsDataURL(pdfFile);
+    try {
+      const uploaded = await uploadPdfFile({
+        userId: State.getUserId(),
+        subjectId: modal.el.querySelector('#mat-subj')?.value || 'general',
+        file: pdfFile
+      });
+      finish(uploaded);
+    } catch {
+      Toast.error('Upload fehlgeschlagen', 'PDF konnte nicht gespeichert werden.');
+    }
+    };
+    doSave();
   });
 
   translateDom(modal.el);
@@ -220,7 +234,7 @@ function openDetail(item, subjects, onSave) {
       ${item.dueDate ? `<div class="detail-kv-row"><span>${t('Fällig am')}</span><strong>${formatDateShort(item.dueDate)}</strong></div>` : ''}
     </div>
     ${item.note ? `<div class="detail-description">${item.note}</div>` : ''}
-    ${item.pdfAttachment?.dataUrl ? `<div style="margin-top:12px"><button class="btn btn-secondary btn-sm" id="mat-preview-pdf">${t('PDF Vorschau')}</button></div>` : ''}`,
+    ${(item.pdfAttachment?.dataUrl || item.pdfAttachment?.storagePath) ? `<div style="margin-top:12px"><button class="btn btn-secondary btn-sm" id="mat-preview-pdf">${t('PDF Vorschau')}</button></div>` : ''}`,
     footer: `<button class="btn btn-danger btn-sm" id="mat-del">${t('Löschen')}</button>
              <button class="btn btn-ghost btn-sm" id="mat-close">${t('Schließen')}</button>`
   });
@@ -232,11 +246,17 @@ function openDetail(item, subjects, onSave) {
     Toast.success(t('Löschen'));
     onSave?.();
   });
-  modal.el.querySelector('#mat-preview-pdf')?.addEventListener('click', () => {
+  modal.el.querySelector('#mat-preview-pdf')?.addEventListener('click', async () => {
+    let url = null;
+    try { url = await getPdfPreviewUrl(item.pdfAttachment); } catch {}
+    if (!url) {
+      Toast.error('PDF fehlt', 'Datei konnte nicht geladen werden.');
+      return;
+    }
     Modal.open({
       title: item.pdfAttachment.name || 'PDF',
       size: 'lg',
-      body: `<iframe src="${item.pdfAttachment.dataUrl}" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:10px"></iframe>`
+      body: `<iframe src="${url}" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:10px"></iframe>`
     });
   });
 }

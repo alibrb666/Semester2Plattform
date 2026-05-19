@@ -7,6 +7,7 @@ import { Modal } from '../components/modal.js';
 import * as scheduleSync from '../scheduleSync.js';
 import { t, setLanguage, LANGUAGES, translateDom } from '../i18n.js';
 import { Auth } from '../auth.js';
+import { uploadPdfFile, getPdfPreviewUrl } from '../fileStorage.js';
 
 export function renderSettings(container) {
   const settings = State.getSettings();
@@ -773,12 +774,19 @@ function _openSubjectModal(subj, isNew, container) {
     listEl.querySelectorAll('[data-pdf-open]').forEach(btn => btn.addEventListener('click', () => {
       const idx = Number(btn.dataset.pdfOpen);
       const file = docs[idx];
-      if (!file?.dataUrl) return;
-      Modal.open({
-        title: file.name,
-        size: 'lg',
-        body: `<iframe src="${file.dataUrl}" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:10px"></iframe>`
-      });
+      getPdfPreviewUrl(file)
+        .then(url => {
+          if (!url) {
+            Toast.error('PDF fehlt', 'Datei konnte nicht geladen werden.');
+            return;
+          }
+          Modal.open({
+            title: file.name,
+            size: 'lg',
+            body: `<iframe src="${url}" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:10px"></iframe>`
+          });
+        })
+        .catch(() => Toast.error('PDF Fehler', 'Vorschau fehlgeschlagen.'));
     }));
     listEl.querySelectorAll('[data-pdf-del]').forEach(btn => btn.addEventListener('click', () => {
       const idx = Number(btn.dataset.pdfDel);
@@ -789,14 +797,14 @@ function _openSubjectModal(subj, isNew, container) {
   renderDocs();
   modal.el.querySelector('#subj-pdfs')?.addEventListener('change', async e => {
     const files = Array.from(e.target.files || []);
+    const userId = State.getUserId();
     for (const f of files) {
-      const dataUrl = await new Promise((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = () => resolve(String(r.result || ''));
-        r.onerror = reject;
-        r.readAsDataURL(f);
-      });
-      docs.push({ name: f.name, dataUrl, uploadedAt: new Date().toISOString() });
+      try {
+        const uploaded = await uploadPdfFile({ userId, subjectId: subj?.id || _slugify(modal.el.querySelector('#subj-name')?.value || 'subject'), file: f });
+        docs.push(uploaded);
+      } catch {
+        Toast.error('Upload fehlgeschlagen', `PDF "${f.name}" konnte nicht hochgeladen werden.`);
+      }
     }
     e.target.value = '';
     renderDocs();
