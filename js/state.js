@@ -118,15 +118,18 @@ export const State = {
   addSubject(subj) {
     this.set({ subjects: [...this.getSubjects(), subj] });
     Sync.pushSubject(subj, _userId);
+    Sync.pushProfileState(_state, _userId);
   },
   updateSubject(id, patch) {
     this.set({ subjects: this.getSubjects().map(s => s.id === id ? { ...s, ...patch } : s) });
     const updated = this.getSubjects().find(s => s.id === id);
     if (updated) Sync.pushSubject(updated, _userId);
+    Sync.pushProfileState(_state, _userId);
   },
   removeSubject(id) {
     this.set({ subjects: this.getSubjects().filter(s => s.id !== id) });
     Sync.deleteSubject(id, _userId);
+    Sync.pushProfileState(_state, _userId);
   },
 
   updateSettings(patch) {

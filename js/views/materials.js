@@ -53,7 +53,8 @@ export function renderMaterials(container) {
     list.innerHTML = groups.map(group => {
       const subjectName = group.subject?.name || 'Ohne Fach';
       const subjectColor = group.subject ? `var(--subject-${group.subject.id})` : 'var(--text-tertiary)';
-      const pdfs = group.entries.filter(item => item.pdfAttachment?.dataUrl);
+      const materialPdfs = group.entries.filter(item => item.pdfAttachment?.dataUrl);
+      const subjectPdfs = Array.isArray(group.subject?.pdfs) ? group.subject.pdfs.filter(p => p?.dataUrl) : [];
       return `<div class="card" style="padding:14px;margin-bottom:12px">
         <div class="section-header" style="margin-bottom:10px">
           <div class="section-title" style="display:flex;align-items:center;gap:8px">
@@ -63,8 +64,9 @@ export function renderMaterials(container) {
         </div>
         <div style="margin-bottom:10px">
           <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:6px">PDFs</div>
-          ${pdfs.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px">
-            ${pdfs.map(item => `<button class="btn btn-secondary btn-sm" type="button" data-pdf-preview="${item.id}">${escapeHtml(item.pdfAttachment?.name || item.title)}</button>`).join('')}
+          ${(materialPdfs.length || subjectPdfs.length) ? `<div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${materialPdfs.map(item => `<button class="btn btn-secondary btn-sm" type="button" data-pdf-preview-material="${item.id}">${escapeHtml(item.pdfAttachment?.name || item.title)}</button>`).join('')}
+            ${subjectPdfs.map((pdf, idx) => `<button class="btn btn-secondary btn-sm" type="button" data-pdf-preview-subject="${group.subject?.id || ''}" data-pdf-index="${idx}">${escapeHtml(pdf.name || `PDF ${idx + 1}`)}</button>`).join('')}
           </div>` : `<div style="font-size:12px;color:var(--text-tertiary)">Keine PDFs hochgeladen.</div>`}
         </div>
         <div>
@@ -78,7 +80,7 @@ export function renderMaterials(container) {
                 ${item.note ? `<div class="session-note" style="font-size:12px;color:var(--text-tertiary)">${item.note}</div>` : ''}
               </div>
               <div class="session-meta">
-                ${item.pdfAttachment?.dataUrl ? `<button class="btn btn-secondary btn-sm" type="button" data-pdf-preview="${item.id}">PDF</button>` : ''}
+                ${item.pdfAttachment?.dataUrl ? `<button class="btn btn-secondary btn-sm" type="button" data-pdf-preview-material="${item.id}">PDF</button>` : ''}
               </div>
             </div>`;
           }).join('')}
@@ -93,20 +95,34 @@ export function renderMaterials(container) {
   });
   list.querySelectorAll('[data-material-id]').forEach(el => {
     el.addEventListener('click', e => {
-      if (e.target.closest('[data-pdf-preview]')) return;
+      if (e.target.closest('[data-pdf-preview-material]') || e.target.closest('[data-pdf-preview-subject]')) return;
       const item = State.getMaterials().find(m => m.id === el.dataset.materialId);
       if (item) openDetail(item, subjects, () => renderMaterials(container));
     });
   });
-  list.querySelectorAll('[data-pdf-preview]').forEach(btn => {
+  list.querySelectorAll('[data-pdf-preview-material]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      const item = State.getMaterials().find(m => m.id === btn.dataset.pdfPreview);
+      const item = State.getMaterials().find(m => m.id === btn.dataset.pdfPreviewMaterial);
       if (!item?.pdfAttachment?.dataUrl) return;
       Modal.open({
         title: item.pdfAttachment.name || 'PDF',
         size: 'lg',
         body: `<iframe src="${item.pdfAttachment.dataUrl}" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:10px"></iframe>`
+      });
+    });
+  });
+  list.querySelectorAll('[data-pdf-preview-subject]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const subject = subjects.find(s => s.id === btn.dataset.pdfPreviewSubject);
+      const idx = Number(btn.dataset.pdfIndex);
+      const pdf = subject?.pdfs?.[idx];
+      if (!pdf?.dataUrl) return;
+      Modal.open({
+        title: pdf.name || 'PDF',
+        size: 'lg',
+        body: `<iframe src="${pdf.dataUrl}" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:10px"></iframe>`
       });
     });
   });

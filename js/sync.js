@@ -249,8 +249,12 @@ function splitProfileSettings(raw = {}) {
 
 function buildAppData(state) {
   const mockPdfById = {};
+  const subjectPdfById = {};
   (state.mocks || []).forEach(m => {
     if (m?.id && m?.pdfAttachment?.dataUrl) mockPdfById[m.id] = m.pdfAttachment;
+  });
+  (state.subjects || []).forEach(s => {
+    if (s?.id && Array.isArray(s.pdfs) && s.pdfs.length) subjectPdfById[s.id] = s.pdfs;
   });
   return {
     schedulePrefs: state.schedulePrefs || null,
@@ -258,6 +262,7 @@ function buildAppData(state) {
     achievements: state.achievements || {},
     materials: state.materials || [],
     mockPdfById,
+    subjectPdfById,
     scheduleCache: scheduleSync.loadCache(),
     eventSubjectMap: scheduleSync.loadOverrides()
   };
@@ -307,7 +312,13 @@ export async function loadAllData(userId, defaultState) {
     ]);
 
     const remoteSubjects = (subjectsRaw || []).map(rowToSubject);
-    const subjects = remoteSubjects.length ? remoteSubjects : defaultState.subjects;
+    const { settings: profileSettings, appData } = splitProfileSettings(profile?.settings || {});
+    const subjectPdfById = appData.subjectPdfById || {};
+    const withSubjectPdfs = (remoteSubjects.length ? remoteSubjects : defaultState.subjects).map(s => ({
+      ...s,
+      pdfs: Array.isArray(subjectPdfById[s.id]) ? subjectPdfById[s.id] : (Array.isArray(s.pdfs) ? s.pdfs : [])
+    }));
+    const subjects = withSubjectPdfs;
 
     // If no subjects in DB yet, seed them
     if (!remoteSubjects.length && defaultState.subjects?.length) {
@@ -320,8 +331,6 @@ export async function loadAllData(userId, defaultState) {
         console.warn('[Sync] subjects exception:', e);
       }
     }
-
-    const { settings: profileSettings, appData } = splitProfileSettings(profile?.settings || {});
 
     if (appData.scheduleCache) {
       scheduleSync.saveCache(appData.scheduleCache.events || [], appData.scheduleCache.lastSyncedAt || null);
