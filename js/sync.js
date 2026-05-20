@@ -12,6 +12,18 @@ function resolveColor(c) { return COLOR_MAP[c] || c || '#8B5CF6'; }
 const QUEUE_KEY = 'learn.sync_queue';
 const APP_DATA_KEY = '__appData';
 
+function noRows(error) {
+  return error?.code === 'PGRST116';
+}
+
+function assertOk(response, context, options = {}) {
+  const { allowNoRows = false } = options;
+  const { error } = response || {};
+  if (!error) return response?.data ?? null;
+  if (allowNoRows && noRows(error)) return null;
+  throw new Error(`[Sync:${context}] ${error.message || 'Unbekannter Supabase-Fehler'}`);
+}
+
 /* ── Offline queue ─────────────────────────────────────────── */
 function getQueue() {
   try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); } catch { return []; }
@@ -29,17 +41,17 @@ async function processEntry(entry, userId) {
   userId = entry.userId || userId;
   const { type, data } = entry;
   switch (type) {
-    case 'upsert-session':     await supabase.from('sessions').upsert(sessionToRow(data, userId)); break;
-    case 'upsert-todo':        await supabase.from('todos').upsert(todoToRow(data, userId)); break;
-    case 'upsert-error':       await supabase.from('error_log').upsert(errorToRow(data, userId)); break;
-    case 'upsert-mock':        await supabase.from('mocks').upsert(mockToRow(data, userId)); break;
-    case 'upsert-subject':     await supabase.from('subjects').upsert(subjectToRow(data, userId)); break;
-    case 'upsert-review':      await supabase.from('weekly_reviews').upsert(reviewToRow(data, userId)); break;
-    case 'delete-session':     await supabase.from('sessions').delete().eq('id', data.id).eq('user_id', userId); break;
-    case 'delete-todo':        await supabase.from('todos').delete().eq('id', data.id).eq('user_id', userId); break;
-    case 'delete-error':       await supabase.from('error_log').delete().eq('id', data.id).eq('user_id', userId); break;
-    case 'delete-mock':        await supabase.from('mocks').delete().eq('id', data.id).eq('user_id', userId); break;
-    case 'delete-subject':     await supabase.from('subjects').delete().eq('id', data.id).eq('user_id', userId); break;
+    case 'upsert-session':     assertOk(await supabase.from('sessions').upsert(sessionToRow(data, userId)), type); break;
+    case 'upsert-todo':        assertOk(await supabase.from('todos').upsert(todoToRow(data, userId)), type); break;
+    case 'upsert-error':       assertOk(await supabase.from('error_log').upsert(errorToRow(data, userId)), type); break;
+    case 'upsert-mock':        assertOk(await supabase.from('mocks').upsert(mockToRow(data, userId)), type); break;
+    case 'upsert-subject':     assertOk(await supabase.from('subjects').upsert(subjectToRow(data, userId)), type); break;
+    case 'upsert-review':      assertOk(await supabase.from('weekly_reviews').upsert(reviewToRow(data, userId)), type); break;
+    case 'delete-session':     assertOk(await supabase.from('sessions').delete().eq('id', data.id).eq('user_id', userId), type); break;
+    case 'delete-todo':        assertOk(await supabase.from('todos').delete().eq('id', data.id).eq('user_id', userId), type); break;
+    case 'delete-error':       assertOk(await supabase.from('error_log').delete().eq('id', data.id).eq('user_id', userId), type); break;
+    case 'delete-mock':        assertOk(await supabase.from('mocks').delete().eq('id', data.id).eq('user_id', userId), type); break;
+    case 'delete-subject':     assertOk(await supabase.from('subjects').delete().eq('slug', data.id).eq('user_id', userId), type); break;
     case 'upsert-settings':    await upsertProfileSettings(userId, data); break;
     case 'upsert-profile-data': await upsertProfileState(userId, data); break;
     default: break;
@@ -286,23 +298,24 @@ function buildAppData(state) {
 
 async function upsertProfileSettings(userId, settings) {
   const current = await supabase.from('profiles').select('settings').eq('id', userId).single();
-  const appData = current.data?.settings?.[APP_DATA_KEY] || {};
-  await supabase.from('profiles').upsert({
+  const currentData = assertOk(current, 'profile-settings:select', { allowNoRows: true });
+  const appData = currentData?.settings?.[APP_DATA_KEY] || {};
+  assertOk(await supabase.from('profiles').upsert({
     id: userId,
     name: settings.name || '',
     settings: { ...settings, [APP_DATA_KEY]: appData },
     updated_at: new Date().toISOString()
-  });
+  }), 'profile-settings:upsert');
 }
 
 async function upsertProfileState(userId, state) {
   const settings = state.settings || {};
-  await supabase.from('profiles').upsert({
+  assertOk(await supabase.from('profiles').upsert({
     id: userId,
     name: settings.name || '',
     settings: { ...settings, [APP_DATA_KEY]: buildAppData(state) },
     updated_at: new Date().toISOString()
-  });
+  }), 'profile-state:upsert');
 }
 
 /* ── Load all data ─────────────────────────────────────────── */
@@ -310,13 +323,13 @@ export async function loadAllData(userId, defaultState) {
   setSyncing(true);
   try {
     const [
-      { data: sessionsRaw },
-      { data: todosRaw },
-      { data: errorsRaw },
-      { data: mocksRaw },
-      { data: reviewsRaw },
-      { data: subjectsRaw },
-      { data: profile }
+      sessionsResp,
+      todosResp,
+      errorsResp,
+      mocksResp,
+      reviewsResp,
+      subjectsResp,
+      profileResp
     ] = await Promise.all([
       supabase.from('sessions').select('*').eq('user_id', userId).order('started_at', { ascending: false }),
       supabase.from('todos').select('*').eq('user_id', userId),
@@ -326,8 +339,15 @@ export async function loadAllData(userId, defaultState) {
       supabase.from('subjects').select('*').eq('user_id', userId),
       supabase.from('profiles').select('*').eq('id', userId).single()
     ]);
+    const sessionsRaw = assertOk(sessionsResp, 'load:sessions') || [];
+    const todosRaw = assertOk(todosResp, 'load:todos') || [];
+    const errorsRaw = assertOk(errorsResp, 'load:errors') || [];
+    const mocksRaw = assertOk(mocksResp, 'load:mocks') || [];
+    const reviewsRaw = assertOk(reviewsResp, 'load:reviews') || [];
+    const subjectsRaw = assertOk(subjectsResp, 'load:subjects') || [];
+    const profile = assertOk(profileResp, 'load:profile', { allowNoRows: true });
 
-    const remoteSubjects = (subjectsRaw || []).map(rowToSubject);
+    const remoteSubjects = subjectsRaw.map(rowToSubject);
     const { settings: profileSettings, appData } = splitProfileSettings(profile?.settings || {});
     const subjectPdfById = appData.subjectPdfById || {};
     const localSubjectById = new Map((defaultState.subjects || []).map(s => [s.id, s]));
@@ -364,7 +384,7 @@ export async function loadAllData(userId, defaultState) {
       : defaultState.settings;
 
     const mockPdfById = appData.mockPdfById || {};
-    const mocks = (mocksRaw || []).map(rowToMock).map(m => ({
+    const mocks = mocksRaw.map(rowToMock).map(m => ({
       ...m,
       pdfAttachment: mockPdfById[m.id] || null
     }));
@@ -382,11 +402,11 @@ export async function loadAllData(userId, defaultState) {
       scheduleBlocks: appData.scheduleBlocks || defaultState.scheduleBlocks || [],
       achievements: appData.achievements || defaultState.achievements || {},
       materials: mergedMaterials,
-      sessions:      (sessionsRaw || []).map(rowToSession),
-      todos:         (todosRaw    || []).map(rowToTodo),
-      errorLog:      (errorsRaw   || []).map(rowToError),
+      sessions:      sessionsRaw.map(rowToSession),
+      todos:         todosRaw.map(rowToTodo),
+      errorLog:      errorsRaw.map(rowToError),
       mocks,
-      weeklyReviews: (reviewsRaw  || []).map(rowToReview)
+      weeklyReviews: reviewsRaw.map(rowToReview)
     };
   } finally {
     setSyncing(false);
@@ -428,12 +448,12 @@ export async function migrateLocalData(localState, userId) {
   setSyncing(true);
   try {
     const batches = [
-      ...(localState.sessions || []).filter(s => !s.isDemo).map(s => supabase.from('sessions').upsert(sessionToRow(s, userId))),
-      ...(localState.todos    || []).map(t => supabase.from('todos').upsert(todoToRow(t, userId))),
-      ...(localState.errorLog || []).filter(e => !e.isDemo).map(e => supabase.from('error_log').upsert(errorToRow(e, userId))),
-      ...(localState.mocks    || []).filter(m => !m.isDemo).map(m => supabase.from('mocks').upsert(mockToRow(m, userId))),
-      ...(localState.subjects || []).map(s => supabase.from('subjects').upsert(subjectToRow(s, userId))),
-      supabase.from('profiles').upsert({
+      ...(localState.sessions || []).filter(s => !s.isDemo).map(s => () => supabase.from('sessions').upsert(sessionToRow(s, userId))),
+      ...(localState.todos    || []).map(t => () => supabase.from('todos').upsert(todoToRow(t, userId))),
+      ...(localState.errorLog || []).filter(e => !e.isDemo).map(e => () => supabase.from('error_log').upsert(errorToRow(e, userId))),
+      ...(localState.mocks    || []).filter(m => !m.isDemo).map(m => () => supabase.from('mocks').upsert(mockToRow(m, userId))),
+      ...(localState.subjects || []).map(s => () => supabase.from('subjects').upsert(subjectToRow(s, userId))),
+      () => supabase.from('profiles').upsert({
         id: userId,
         name: localState.settings?.name || '',
         settings: { ...(localState.settings || {}), [APP_DATA_KEY]: buildAppData(localState) },
@@ -443,7 +463,8 @@ export async function migrateLocalData(localState, userId) {
     // Run in chunks to avoid overwhelming the API
     const CHUNK = 20;
     for (let i = 0; i < batches.length; i += CHUNK) {
-      await Promise.all(batches.slice(i, i + CHUNK));
+      const responses = await Promise.all(batches.slice(i, i + CHUNK).map(run => run()));
+      responses.forEach(resp => assertOk(resp, 'migrate'));
     }
   } finally {
     setSyncing(false);

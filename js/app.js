@@ -567,17 +567,17 @@ function showAccountModal() {
   modal.el.querySelector('#btn-switch-profile')?.addEventListener('click', async () => {
     modal.close();
     try { await syncBeforeSignOut(); } catch (e) { console.warn('[Switch Profile Sync]', e); }
-    await Auth.signOut();
+    try { await Auth.signOut(); } catch (e) { console.warn('[Switch Profile SignOut]', e); }
     location.reload();
   });
   modal.el.querySelector('#btn-logout')?.addEventListener('click', async () => {
     modal.close();
     try {
       await syncBeforeSignOut();
-      await Auth.signOut();
     } catch (e) {
       console.warn('[Logout]', e);
     }
+    try { await Auth.signOut(); } catch (e) { console.warn('[Logout SignOut]', e); }
     location.reload();
   });
   modal.el.querySelector('#btn-device-reset')?.addEventListener('click', async () => {

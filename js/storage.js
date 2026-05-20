@@ -107,6 +107,24 @@ export const Storage = {
     if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
     localStorage.removeItem(storageKey());
     try {
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        if (
+          k === KEY ||
+          k === BACKUP_INDEX_PREFIX ||
+          k === 'learn.sync_queue' ||
+          k === 'learn.profiles' ||
+          k === 'learn.blocked_profile_ids' ||
+          k.startsWith(`${KEY}:`) ||
+          k.startsWith(`${BACKUP_PREFIX}:`) ||
+          k.startsWith(`${BACKUP_INDEX_PREFIX}:`)
+        ) keys.push(k);
+      }
+      keys.forEach(k => localStorage.removeItem(k));
+    } catch (_) {}
+    try {
       const idx = JSON.parse(localStorage.getItem(backupIndexKey()) || '[]');
       idx.forEach(ts => localStorage.removeItem(backupDataKey(ts)));
       localStorage.removeItem(backupIndexKey());
