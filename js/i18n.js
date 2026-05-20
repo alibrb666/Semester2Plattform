@@ -21,7 +21,7 @@ const DICT = {
     timezoneSub: 'Für Begrüßung und angezeigte Uhrzeit',
     systemDefault: 'Systemstandard',
     timezoneSaved: 'Zeitzone gespeichert',
-    languageSub: 'Deutsch, Englisch oder Französisch',
+    languageSub: 'Deutsch, Englisch, Französisch oder Darija (Demo)',
     profile: 'Profil',
     profileNameSub: 'Wird in der Begrüßung angezeigt',
     settings: 'Einstellungen',
@@ -54,6 +54,7 @@ const DICT = {
     german: 'Deutsch',
     english: 'Englisch',
     french: 'Französisch',
+    darija: 'Darija (Demo)',
     goodMorning: 'Guten Morgen',
     goodAfternoon: 'Guten Tag',
     goodEvening: 'Guten Abend',
@@ -102,7 +103,7 @@ const DICT = {
     timezoneSub: 'Used for greeting and shown clock',
     systemDefault: 'System default',
     timezoneSaved: 'Timezone saved',
-    languageSub: 'German, English or French',
+    languageSub: 'German, English, French or Darija (Demo)',
     profile: 'Profile',
     profileNameSub: 'Shown in the greeting',
     settings: 'Settings',
@@ -135,6 +136,7 @@ const DICT = {
     german: 'German',
     english: 'English',
     french: 'French',
+    darija: 'Darija (Demo)',
     goodMorning: 'Good morning',
     goodAfternoon: 'Good afternoon',
     goodEvening: 'Good evening',
@@ -183,7 +185,7 @@ const DICT = {
     timezoneSub: 'Utilisé pour le message d’accueil et l’horloge affichée',
     systemDefault: 'Valeur système',
     timezoneSaved: 'Fuseau horaire enregistré',
-    languageSub: 'Allemand, anglais ou français',
+    languageSub: 'Allemand, anglais, français ou Darija (démo)',
     profile: 'Profil',
     profileNameSub: 'Affiché dans le message d’accueil',
     settings: 'Paramètres',
@@ -216,6 +218,7 @@ const DICT = {
     german: 'Allemand',
     english: 'Anglais',
     french: 'Français',
+    darija: 'Darija (Démo)',
     goodMorning: 'Bonjour',
     goodAfternoon: 'Bonjour',
     goodEvening: 'Bonsoir',
@@ -243,6 +246,70 @@ const DICT = {
     pdfOptional: 'PDF (optionnel)',
     noMaterialsYet: 'Aucune entrée',
     noMaterialsHint: 'Ajoute des tâches ou des supports par matière.'
+  },
+  dm: {
+    appName: 'Plattform BDARIJA',
+    welcome: 'Marhba bik weldi',
+    welcomeSub: 'Platform dyalek bach twjd l imti7anat.',
+    selectProfile: 'Khtar profil',
+    selectProfileSub: 'Khtar user w dkhl PIN.',
+    newProfile: 'Profil jdid',
+    addProfile: 'Zid profil',
+    username: 'Smiya',
+    pin: 'PIN',
+    createPin: 'Dir PIN',
+    opening: 'Kayt7ell…',
+    open: '7ell',
+    unlock: '7ell b PIN',
+    cancel: '9ta3 laydir lkher',
+    language: 'Lougha',
+    timezone: 'lwe9t',
+    timezoneSub: 'Katban f tahiya w sa3a',
+    systemDefault: 'Default dyal system (EU)',
+    timezoneSaved: 'Timezone t7fdat',
+    languageSub: 'Darija , Deutsch, English, Français',
+    profile: 'Profil',
+    profileNameSub: 'Katban f tahiya',
+    settings: 'I3dadat',
+    dashboard: 'Dashboard',
+    schedule: 'Lblan',
+    sessions: '7issas',
+    todos: 'Todos',
+    statistics: 'Stats',
+    errors: 'Akhṭa2',
+    mocks: 'Imti7anat Tjribia',
+    today: 'Lyoum',
+    plan: 'Plan',
+    stats: 'Stats',
+    more: 'Ktar',
+    quickCapture: 'Zid b sr3a',
+    account: 'Compte',
+    switchProfile: 'Bdel profil',
+    logout: 'Khrj',
+    close: 'Sedd',
+    deviceReset: 'Reset l appareil',
+    wrongPin: 'PIN ghalat.',
+    profileExists: 'Had profil deja kayn. Khtaro w 7ell b PIN.',
+    pinRequired: 'Dkhl PIN dyal 4 ar9am.',
+    nameRequired: 'Dkhl smiya.',
+    profileHint: 'Data katb9a mfrza 3la 7sab kol profil.',
+    noProfiles: 'Mazal ma kayn 7tta profil f had l appareil.',
+    knownProfiles: 'Profils',
+    createFirstProfile: 'Sawb awel profil',
+    german: 'Almaniya',
+    english: 'Ingliziya',
+    french: 'Fransawiya',
+    darija: 'Darija ',
+    goodMorning: 'Sba7 lkhir',
+    goodAfternoon: 'Nhark Mbrok weldi',
+    goodEvening: 'Msa lkhir',
+    phase1: 'Phase 1 - Dala w Dasisa',
+    phase2: 'Phase 2 - Ta3mi9',
+    phase3: 'Phase 3 - Mod imti7an',
+    momentumCoach: 'Blayza lcoach',
+    weeklyGoalDone: 'mn lhadaf dyal simana',
+    bestNextSubject: 'blayza kaynas7ak t9ra',
+    startNow: 'Bda daba'
   }
 };
 
@@ -903,7 +970,7 @@ let _lang = normalize(localStorage.getItem(LANG_KEY) || document.documentElement
 export const initialLanguage = _lang;
 
 function normalize(lang) {
-  return ['de', 'en', 'fr'].includes(lang) ? lang : 'de';
+  return ['de', 'en', 'fr', 'dm'].includes(lang) ? lang : 'de';
 }
 
 export function setLanguage(lang) {
@@ -968,7 +1035,8 @@ export function translateDom(root = document) {
 export const LANGUAGES = [
   { code: 'de', labelKey: 'german' },
   { code: 'en', labelKey: 'english' },
-  { code: 'fr', labelKey: 'french' }
+  { code: 'fr', labelKey: 'french' },
+  { code: 'dm', labelKey: 'darija' }
 ];
 
 setLanguage(_lang);

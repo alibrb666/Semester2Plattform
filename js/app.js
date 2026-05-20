@@ -431,12 +431,30 @@ function launchApp() {
 function initPersistenceGuards() {
   if (_persistenceGuardsBound) return;
   _persistenceGuardsBound = true;
-  const flush = () => Storage.saveNow(State.get());
+  const flush = () => {
+    const state = State.get();
+    Storage.saveNow(state);
+    const uid = State.getUserId();
+    if (uid) {
+      Sync.pushProfileState(state, uid);
+      Sync.flushQueue(uid);
+    }
+  };
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') flush();
   });
   window.addEventListener('pagehide', flush);
   window.addEventListener('beforeunload', flush);
+}
+
+async function syncBeforeSignOut() {
+  const uid = State.getUserId();
+  const state = State.get();
+  Storage.saveNow(state);
+  if (!uid) return;
+  await Sync.migrateLocalData(state, uid);
+  await Sync.pushProfileState(state, uid);
+  await Sync.flushQueue(uid);
 }
 
 async function maybeRefreshIcsSchedule() {
@@ -548,20 +566,18 @@ function showAccountModal() {
   modal.el.querySelector('#btn-account-close')?.addEventListener('click', () => modal.close());
   modal.el.querySelector('#btn-switch-profile')?.addEventListener('click', async () => {
     modal.close();
-    Storage.saveNow(State.get());
-    try { await Sync.pushProfileState(State.get(), State.getUserId()); } catch {}
+    try { await syncBeforeSignOut(); } catch (e) { console.warn('[Switch Profile Sync]', e); }
     await Auth.signOut();
     location.reload();
   });
   modal.el.querySelector('#btn-logout')?.addEventListener('click', async () => {
     modal.close();
     try {
-      await Sync.pushProfileState(State.get(), State.getUserId());
+      await syncBeforeSignOut();
       await Auth.signOut();
     } catch (e) {
       console.warn('[Logout]', e);
     }
-    Storage.saveNow(State.get());
     location.reload();
   });
   modal.el.querySelector('#btn-device-reset')?.addEventListener('click', async () => {
