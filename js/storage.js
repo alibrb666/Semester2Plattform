@@ -1,10 +1,23 @@
 const KEY = 'learn.v1';
 const CURRENT_VERSION = 2;
+const BACKUP_PREFIX = 'learn.v1.backup';
+const BACKUP_INDEX_PREFIX = 'learn.v1.backup_index';
+const MAX_BACKUPS = 5;
+const BACKUP_INTERVAL_MS = 2 * 60 * 1000;
 let _saveTimer = null;
 let _userId = null;
+let _lastBackupAt = 0;
 
 function storageKey() {
   return _userId ? `${KEY}:${_userId}` : KEY;
+}
+
+function backupIndexKey() {
+  return _userId ? `${BACKUP_INDEX_PREFIX}:${_userId}` : BACKUP_INDEX_PREFIX;
+}
+
+function backupDataKey(ts) {
+  return _userId ? `${BACKUP_PREFIX}:${_userId}:${ts}` : `${BACKUP_PREFIX}:${ts}`;
 }
 
 export const Storage = {
@@ -16,7 +29,7 @@ export const Storage = {
     const { allowLegacy = true } = options;
     try {
       const raw = localStorage.getItem(storageKey()) || (allowLegacy && _userId ? localStorage.getItem(KEY) : null);
-      if (!raw) return null;
+      if (!raw) return this._loadLatestBackup();
       const data = JSON.parse(raw);
       if (!data.version || data.version < CURRENT_VERSION) {
         const migrated = this.migrate(data, data.version || 0);
@@ -26,7 +39,7 @@ export const Storage = {
       return data;
     } catch (e) {
       console.error('[Storage] load failed:', e);
-      return null;
+      return this._loadLatestBackup();
     }
   },
 
@@ -42,21 +55,63 @@ export const Storage = {
 
   _write(data) {
     try {
-      localStorage.setItem(storageKey(), JSON.stringify(data));
+      const raw = JSON.stringify(data);
+      localStorage.setItem(storageKey(), raw);
+      this._writeBackup(raw);
     } catch (e) {
       if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
         console.warn('[Storage] Quota exceeded – trimming old sessions');
         try {
           const trimmed = { ...data, sessions: (data.sessions || []).slice(-200) };
-          localStorage.setItem(storageKey(), JSON.stringify(trimmed));
+          const raw = JSON.stringify(trimmed);
+          localStorage.setItem(storageKey(), raw);
+          this._writeBackup(raw);
         } catch (_) {}
       }
+    }
+  },
+
+  _writeBackup(rawState) {
+    const now = Date.now();
+    if (now - _lastBackupAt < BACKUP_INTERVAL_MS) return;
+    _lastBackupAt = now;
+    try {
+      const idxKey = backupIndexKey();
+      const idx = JSON.parse(localStorage.getItem(idxKey) || '[]');
+      const next = [...idx, now].slice(-MAX_BACKUPS);
+      localStorage.setItem(backupDataKey(now), rawState);
+      localStorage.setItem(idxKey, JSON.stringify(next));
+      const stale = idx.slice(0, Math.max(0, idx.length - (MAX_BACKUPS - 1)));
+      stale.forEach(ts => localStorage.removeItem(backupDataKey(ts)));
+    } catch (e) {
+      console.warn('[Storage] backup write skipped:', e?.message || e);
+    }
+  },
+
+  _loadLatestBackup() {
+    try {
+      const idx = JSON.parse(localStorage.getItem(backupIndexKey()) || '[]');
+      const latest = idx[idx.length - 1];
+      if (!latest) return null;
+      const raw = localStorage.getItem(backupDataKey(latest));
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      console.warn('[Storage] Main state missing/broken, restored latest local backup.');
+      return data;
+    } catch {
+      return null;
     }
   },
 
   clear() {
     if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
     localStorage.removeItem(storageKey());
+    try {
+      const idx = JSON.parse(localStorage.getItem(backupIndexKey()) || '[]');
+      idx.forEach(ts => localStorage.removeItem(backupDataKey(ts)));
+      localStorage.removeItem(backupIndexKey());
+      _lastBackupAt = 0;
+    } catch (_) {}
     try {
       localStorage.removeItem('learn.v1.scheduleCache');
       localStorage.removeItem('learn.v1.eventSubjectMap');

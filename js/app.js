@@ -33,6 +33,7 @@ let _routerVisualListener = false;
 let _shortcutsDocBound = false;
 let _sessionSavedDocBound = false;
 let _actionDelegationBound = false;
+let _persistenceGuardsBound = false;
 
 function setActiveUser(userId) {
   State.setUserId(userId);
@@ -385,6 +386,7 @@ function launchApp() {
   FocusMode.init();
   initKeyboard();
   initActionDelegation();
+  initPersistenceGuards();
 
   if (!_shortcutsDocBound) {
     _shortcutsDocBound = true;
@@ -428,6 +430,17 @@ function launchApp() {
     renderIcons(document.getElementById('mobile-tabs'));
     renderIcons(document.getElementById('session-widget'));
   });
+}
+
+function initPersistenceGuards() {
+  if (_persistenceGuardsBound) return;
+  _persistenceGuardsBound = true;
+  const flush = () => Storage.saveNow(State.get());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flush();
+  });
+  window.addEventListener('pagehide', flush);
+  window.addEventListener('beforeunload', flush);
 }
 
 async function maybeRefreshIcsSchedule() {
