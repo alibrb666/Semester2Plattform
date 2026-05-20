@@ -222,12 +222,12 @@ export function renderSettings(container) {
           <div class="settings-section-title">Daten</div>
           <div class="export-zone">
             <i data-lucide="database" style="width:32px;height:32px;color:var(--text-disabled)"></i>
-            <div class="export-zone-title">Daten exportieren & importieren</div>
-            <div class="export-zone-sub">Alle Daten als JSON-Datei sichern oder aus einer Sicherung wiederherstellen.</div>
+            <div class="export-zone-title">Backup exportieren & wiederherstellen</div>
+            <div class="export-zone-sub">Kompletten Stand als JSON sichern und bei Bedarf vollständig wiederherstellen.</div>
             <div class="export-actions">
-              <button class="btn btn-secondary btn-sm" id="btn-export"><i data-lucide="download"></i> Exportieren</button>
+              <button class="btn btn-secondary btn-sm" id="btn-export"><i data-lucide="download"></i> Backup erstellen</button>
               <label class="btn btn-secondary btn-sm" style="cursor:pointer">
-                <i data-lucide="upload"></i> Importieren
+                <i data-lucide="upload"></i> Backup wiederherstellen
                 <input type="file" id="btn-import" accept=".json" style="display:none" />
               </label>
             </div>
@@ -489,17 +489,19 @@ function _bindSettings(container, subjects) {
     const reader = new FileReader();
     reader.onload = ev => {
       try {
-        const data = JSON.parse(ev.target.result);
-        if (!data.version || !data.sessions) throw new Error('Ungültiges Format');
+        const raw = JSON.parse(ev.target.result);
+        const data = normalizeImportedState(raw);
         State.init(data);
         Storage.saveNow(data);
-        Toast.success('Import erfolgreich', `${data.sessions.length} Sessions geladen`);
-        location.reload();
+        Toast.success('Backup wiederhergestellt', `${data.sessions.length} Sessions geladen`);
+        setTimeout(() => location.reload(), 150);
       } catch (err) {
-        Toast.error('Import fehlgeschlagen', err.message);
+        Toast.error('Wiederherstellung fehlgeschlagen', err.message);
       }
     };
+    reader.onerror = () => Toast.error('Wiederherstellung fehlgeschlagen', 'Datei konnte nicht gelesen werden.');
     reader.readAsText(file);
+    e.target.value = '';
   });
 
   /* Reset */
@@ -802,8 +804,9 @@ function _openSubjectModal(subj, isNew, container) {
       try {
         const uploaded = await uploadPdfFile({ userId, subjectId: subj?.id || _slugify(modal.el.querySelector('#subj-name')?.value || 'subject'), file: f });
         docs.push(uploaded);
-      } catch {
-        Toast.error('Upload fehlgeschlagen', `PDF "${f.name}" konnte nicht hochgeladen werden.`);
+      } catch (err) {
+        const detail = err?.message ? ` (${err.message})` : '';
+        Toast.error('Upload fehlgeschlagen', `PDF "${f.name}" konnte nicht hochgeladen werden${detail}.`);
       }
     }
     e.target.value = '';
@@ -866,6 +869,8 @@ function exportData() {
   const data = {
     ...State.get(),
     _exportMeta: {
+      exportedAt: new Date().toISOString(),
+      app: 'lernplattform',
       scheduleCache: scheduleSync.loadCache(),
       eventSubjectMap: scheduleSync.loadOverrides()
     }
@@ -875,8 +880,28 @@ function exportData() {
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href = url;
-  a.download = `lernplattform-${new Date().toISOString().split('T')[0]}.json`;
+  a.download = `lernplattform-backup-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.json`;
   a.click();
   URL.revokeObjectURL(url);
-  Toast.success('Export erfolgreich');
+  Toast.success('Backup erstellt');
+}
+
+function normalizeImportedState(input) {
+  if (!input || typeof input !== 'object') throw new Error('Ungültiges Backup-Format.');
+  const hasMinimumShape = Array.isArray(input.sessions) && Array.isArray(input.subjects) && input.settings && typeof input.settings === 'object';
+  if (!hasMinimumShape) throw new Error('Backup enthält keine gültigen Lerndaten.');
+  const version = Number(input.version || 0);
+  const migrated = version < 2 ? Storage.migrate({ ...input }, version) : input;
+  return {
+    ...migrated,
+    schedulePrefs: migrated.schedulePrefs || {
+      source: 'manual',
+      icsUrl: '',
+      icsFileName: null,
+      lastSyncedAt: null,
+      lastError: null,
+      eventCount: 0,
+      syncIntervalMinutes: 60
+    }
+  };
 }

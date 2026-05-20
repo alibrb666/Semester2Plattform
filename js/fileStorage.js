@@ -11,9 +11,26 @@ function safeSegment(v) {
   return String(v || '').replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
+async function fileToDataUrl(file) {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Datei konnte nicht gelesen werden.'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export async function uploadPdfFile({ userId, subjectId = 'general', file }) {
   if (!file) throw new Error('Datei fehlt.');
-  if (isSupabaseFallback) throw new Error('Cloud ist nicht aktiv.');
+  if (isSupabaseFallback) {
+    return {
+      name: file.name || 'Dokument.pdf',
+      dataUrl: await fileToDataUrl(file),
+      mimeType: file.type || 'application/pdf',
+      size: Number(file.size || 0),
+      uploadedAt: new Date().toISOString()
+    };
+  }
   const { data, error: authError } = await supabase.auth.getUser();
   if (authError) throw authError;
   const authUid = data?.user?.id;

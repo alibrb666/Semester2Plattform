@@ -213,8 +213,9 @@ function openCreateModal(subjects, onSave) {
         file: pdfFile
       });
       finish(uploaded);
-    } catch {
-      Toast.error('Upload fehlgeschlagen', 'PDF konnte nicht gespeichert werden.');
+    } catch (err) {
+      const detail = err?.message ? ` (${err.message})` : '';
+      Toast.error('Upload fehlgeschlagen', `PDF konnte nicht gespeichert werden${detail}.`);
     }
     };
     doSave();
