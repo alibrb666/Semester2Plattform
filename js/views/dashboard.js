@@ -67,14 +67,21 @@ export function renderDashboard(container) {
 
       <!-- Hero -->
       <section class="hero" aria-label="Begrüßung">
-        <h1 class="hero-greeting">${greeting(settings.name)}</h1>
-        <div class="hero-meta">
-          <span class="hero-date">${formatDateDE(new Date())}</span>
-          <span class="hero-date hero-clock" id="hero-clock">${currentClock(true)} ${tz ? `· GMT${tz}` : ''}</span>
-          <span class="hero-phase" style="background:rgba(var(--phase-rgb,139,92,246),0.12);color:${phase.color};border-color:rgba(var(--phase-rgb,139,92,246),0.25)">
-            ${phase.label}
-          </span>
-          <span class="hero-streak">🔥 ${streak} ${streak === 1 ? 'Tag' : 'Tage'} Streak</span>
+        <div class="hero-layout">
+          <div>
+            <h1 class="hero-greeting">${greeting(settings.name)}</h1>
+            <div class="hero-meta">
+              <span class="hero-date">${formatDateDE(new Date())}</span>
+              <span class="hero-phase" style="background:rgba(var(--phase-rgb,139,92,246),0.12);color:${phase.color};border-color:rgba(var(--phase-rgb,139,92,246),0.25)">
+                ${phase.label}
+              </span>
+              <span class="hero-streak">🔥 ${streak} ${streak === 1 ? 'Tag' : 'Tage'} Streak</span>
+            </div>
+          </div>
+          <div class="hero-clock-card" aria-live="polite">
+            <div class="hero-clock-label">Lokale Zeit ${tz ? `· GMT${tz}` : ''}</div>
+            <div class="hero-clock" id="hero-clock">${currentClock(true)}</div>
+          </div>
         </div>
       </section>
 
@@ -219,7 +226,7 @@ export function renderDashboard(container) {
   const clockEl = container.querySelector('#hero-clock');
   if (clockEl) {
     _clockTimer = setInterval(() => {
-      clockEl.textContent = `${currentClock(true)} ${tz ? `· GMT${tz}` : ''}`;
+      clockEl.textContent = currentClock(true);
     }, 1000);
   }
 

@@ -17,7 +17,6 @@ import { renderSessions }  from './views/sessions.js';
 import { renderStatistics }from './views/statistics.js';
 import { renderErrors }    from './views/errors.js';
 import { renderMocks }     from './views/mocks.js';
-import { renderMaterials } from './views/materials.js';
 import { renderSettings }  from './views/settings.js';
 import { renderTodos }     from './views/todos.js';
 import { renderIcons, setPhases, applySubjectColors } from './util.js';
@@ -53,7 +52,6 @@ function refreshCurrentView() {
     statistics: renderStatistics,
     errors: renderErrors,
     mocks: renderMocks,
-    materials: renderMaterials,
     settings: renderSettings
   };
   const fn = renders[route] || renderDashboard;
@@ -85,7 +83,6 @@ function applyShellLanguage() {
     ['statistics', t('statistics')],
     ['errors', t('errors')],
     ['mocks', t('mocks')],
-    ['materials', t('materials')],
     ['settings', t('settings')]
   ];
   document.querySelector('.brand-name') && (document.querySelector('.brand-name').textContent = t('appName'));
@@ -94,7 +91,7 @@ function applyShellLanguage() {
   nav.forEach(([route, label]) => {
     document.querySelectorAll(`#sidebar-nav [data-route="${route}"] span`).forEach(el => { el.textContent = label; });
   });
-  const mobile = { dashboard: t('today'), schedule: t('plan'), statistics: t('stats'), materials: t('materials'), settings: t('more') };
+  const mobile = { dashboard: t('today'), schedule: t('plan'), statistics: t('stats'), settings: t('more') };
   Object.entries(mobile).forEach(([route, label]) => {
     const el = document.querySelector(`.mobile-tabs [data-route="${route}"] span`);
     if (el) el.textContent = label;
@@ -375,7 +372,6 @@ function launchApp() {
   Router.register('statistics', renderStatistics);
   Router.register('errors',     renderErrors);
   Router.register('mocks',      renderMocks);
-  Router.register('materials',  renderMaterials);
   Router.register('settings',   renderSettings);
 
   TopBar.init();
@@ -482,7 +478,7 @@ function waitForLucide(ms = 5000) {
 
 function initKeyboard() {
   Keyboard.init();
-  const ROUTES = ['dashboard','schedule','sessions','todos','statistics','errors','mocks','materials','settings'];
+  const ROUTES = ['dashboard','schedule','sessions','todos','statistics','errors','mocks','settings'];
 
   Keyboard.on('palette',        () => document.dispatchEvent(new CustomEvent('app:palette')));
   Keyboard.on('theme',          () => Theme.toggle());
