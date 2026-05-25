@@ -1,7 +1,7 @@
 import { State } from '../state.js';
 import { Storage } from '../storage.js';
 import { Theme } from '../theme.js';
-import { renderIcons, setPhases, applySubjectColors, localeTag } from '../util.js';
+import { renderIcons, setPhases, applySubjectColors, localeTag, resolveSubjectColorHex } from '../util.js';
 import { Toast } from '../components/toast.js';
 import { Modal } from '../components/modal.js';
 import * as scheduleSync from '../scheduleSync.js';
@@ -79,7 +79,7 @@ export function renderSettings(container) {
           <div style="display:flex;flex-direction:column;gap:8px">
             ${[...subjects].sort((a,b) => (a.examDate||'').localeCompare(b.examDate||'')).map(s => `
               <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary)">
-                <div style="width:10px;height:10px;border-radius:50%;background:${s.colorHex||`var(--subject-${s.id})`};flex-shrink:0"></div>
+                <div style="width:10px;height:10px;border-radius:50%;background:${resolveSubjectColorHex(s)};flex-shrink:0"></div>
                 <span style="flex:1">${s.name}</span>
                 <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-tertiary)">${s.examDate ? new Date(s.examDate+'T12:00:00').toLocaleDateString(localeTag(),{day:'numeric',month:'short',year:'numeric'}) : '—'}</span>
               </div>`).join('')}
@@ -265,19 +265,9 @@ export function renderSettings(container) {
   document.addEventListener('settings:export', () => exportData(), { once:true });
 }
 
-/* ── Farb-Optionen ──────────────────────────────────────── */
-const SUBJECT_COLORS = [
-  { hex: '#10B981', label: 'Grün' },
-  { hex: '#8B5CF6', label: 'Violett' },
-  { hex: '#06B6D4', label: 'Cyan' },
-  { hex: '#F59E0B', label: 'Amber' },
-  { hex: '#EF4444', label: 'Rot' },
-  { hex: '#3B82F6', label: 'Blau' },
-];
-
 function _buildSubjectCards(subjects) {
   return subjects.map(s => {
-    const color = s.colorHex || `var(--subject-${s.id})`;
+    const color = resolveSubjectColorHex(s);
     const dateLabel = s.examDate
       ? new Date(s.examDate + 'T12:00:00').toLocaleDateString(localeTag(), { day:'numeric', month:'long', year:'numeric' })
       : 'Kein Datum';
@@ -317,16 +307,6 @@ function _buildPhasesEditor(settings) {
           value="${ph[r.endKey] || r.endDef}" style="font-size:12px;padding:5px 8px" />
       </div>
     </div>`).join('');
-}
-
-function _colorPicker(selectedHex) {
-  return `<div class="color-picker">
-    ${SUBJECT_COLORS.map(c => `
-      <div class="color-option${c.hex === selectedHex ? ' selected' : ''}"
-        style="background:${c.hex}" data-color="${c.hex}" title="${c.label}"
-        role="radio" aria-checked="${c.hex === selectedHex}" tabindex="0"></div>`).join('')}
-  </div>
-  <input type="hidden" id="subj-color" value="${selectedHex || SUBJECT_COLORS[0].hex}" />`;
 }
 
 function _slugify(name) {
@@ -726,8 +706,6 @@ function _bindSettings(container, subjects) {
 }
 
 function _openSubjectModal(subj, isNew, container) {
-  const defaultColor = SUBJECT_COLORS[0].hex;
-  const curColor = subj?.colorHex || defaultColor;
   let docs = Array.isArray(subj?.pdfs) ? [...subj.pdfs] : [];
 
   const body = `
@@ -740,9 +718,8 @@ function _openSubjectModal(subj, isNew, container) {
       <label for="subj-exam">Klausurdatum</label>
       <input class="input" id="subj-exam" type="date" value="${subj?.examDate || ''}" />
     </div>
-    <div class="field">
-      <label>Farbe</label>
-      ${_colorPicker(curColor)}
+    <div class="field-hint" style="font-size:12px;color:var(--text-tertiary)">
+      Farbe wird automatisch pro Fach vergeben.
     </div>
     <div class="field">
       <label for="subj-pdfs">PDFs</label>
@@ -813,16 +790,6 @@ function _openSubjectModal(subj, isNew, container) {
     renderDocs();
   });
 
-  // Color picker interaction
-  modal.el.querySelectorAll('.color-option').forEach(opt => {
-    opt.addEventListener('click', () => {
-      modal.el.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
-      opt.classList.add('selected');
-      modal.el.querySelector('#subj-color').value = opt.dataset.color;
-    });
-    opt.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') opt.click(); });
-  });
-
   modal.el.querySelector('#subj-cancel')?.addEventListener('click', () => modal.close());
 
   modal.el.querySelector('#subj-del')?.addEventListener('click', () => {
@@ -841,11 +808,11 @@ function _openSubjectModal(subj, isNew, container) {
   modal.el.querySelector('#subj-save')?.addEventListener('click', () => {
     const name     = modal.el.querySelector('#subj-name')?.value.trim();
     const examDate = modal.el.querySelector('#subj-exam')?.value || null;
-    const colorHex = modal.el.querySelector('#subj-color')?.value || defaultColor;
     if (!name) { modal.el.querySelector('#subj-name')?.focus(); return; }
 
     if (isNew) {
       const id = _slugify(name);
+      const colorHex = resolveSubjectColorHex({ id, name });
       if (State.getSubjects().find(s => s.id === id)) {
         Toast.error('ID-Konflikt', `Ein Fach mit ähnlichem Namen existiert bereits (ID: ${id}).`);
         return;
@@ -853,6 +820,7 @@ function _openSubjectModal(subj, isNew, container) {
       State.addSubject({ id, name, color: `var(--subject-${id})`, colorHex, examDate, pdfs: docs,
         weeklyGoal: 360 });
     } else {
+      const colorHex = resolveSubjectColorHex({ ...subj, name });
       State.updateSubject(subj.id, { name, examDate, colorHex, pdfs: docs });
     }
     applySubjectColors(State.getSubjects());

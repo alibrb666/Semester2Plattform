@@ -42,7 +42,7 @@ function getDayTimeRange(events, blocks) {
 }
 
 function getColor(subjectId) {
-  if (!subjectId) return 'rgba(148,163,184,0.55)';
+  if (!subjectId) return 'var(--subject-kbs)';
   const subj = State.getSubjects().find(s => s.id === subjectId);
   return subj?.colorHex || `var(--subject-${subjectId})`;
 }
@@ -737,7 +737,7 @@ function openIcsSubjectModal(icsId, subjects, container) {
     <div class="field">
       <label for="ics-subject">Fach zuordnen</label>
       <select class="select" id="ics-subject">
-        <option value="">Neutral (grau)</option>
+        <option value="">Nicht zugeordnet (Orange)</option>
         ${subjects.map(s => `<option value="${s.id}"${cur === s.id ? ' selected' : ''}>${s.name}</option>`).join('')}
       </select>
     </div>`;

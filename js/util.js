@@ -167,10 +167,34 @@ export function isoDate(date = new Date()) {
 let _phases = null;
 export function setPhases(phases) { _phases = phases || null; }
 
+const SUBJECT_PALETTE = ['#F59E0B', '#3B82F6', '#8B5CF6', '#EF4444'];
+
+function hashString(input) {
+  let h = 2166136261;
+  const s = String(input || '');
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+export function resolveSubjectColorHex(subject) {
+  if (subject?.colorHex) return subject.colorHex;
+  const id = String(subject?.id || '').toLowerCase();
+  const name = String(subject?.name || '').toLowerCase();
+  const key = `${id} ${name}`;
+  if (/klr|kosten|fibu/.test(key)) return '#EF4444';
+  if (/math|mathe|mathematik|analysis/.test(key)) return '#3B82F6';
+  if (/prog|programmierung|java|software/.test(key)) return '#8B5CF6';
+  if (/kbs|recht|jura|grundlagen\s*it|betriebssystem|rechnerarchitektur/.test(key)) return '#F59E0B';
+  return SUBJECT_PALETTE[hashString(id || name) % SUBJECT_PALETTE.length];
+}
+
 export function applySubjectColors(subjects) {
   const root = document.documentElement;
   (subjects || []).forEach(s => {
-    if (s.colorHex) root.style.setProperty(`--subject-${s.id}`, s.colorHex);
+    root.style.setProperty(`--subject-${s.id}`, resolveSubjectColorHex(s));
   });
 }
 

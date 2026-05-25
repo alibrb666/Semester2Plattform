@@ -25,7 +25,7 @@ const HEURISTICS = [
   [/klr|kosten|finanzbuch|fibu|kostenrechnung/i, 'klr'],
   [/mathe|mathematik|algebra|logik/i, 'math'],
   [/prog|programmierung|java|software/i, 'prog'],
-  [/kbs|betriebssystem|rechnerarchitektur|grundlagen\s*it/i, 'kbs']
+  [/kbs|betriebssystem|rechnerarchitektur|grundlagen\s*it|recht|jur(a|istisch)/i, 'kbs']
 ];
 
 export function loadCache() {
@@ -76,7 +76,7 @@ export function inferSubjectId(title, description = '') {
 
 export function enrichEvent(ev, overrides) {
   const sid = overrides[ev.id] || inferSubjectId(ev.title, ev.description);
-  const color = sid ? `var(--subject-${sid})` : 'rgba(148,163,184,0.35)';
+  const color = sid ? `var(--subject-${sid})` : 'var(--subject-kbs)';
   return { ...ev, subjectId: sid || null, color };
 }
 
