@@ -226,9 +226,15 @@ function _showDetailModal(s, sub, d, container, onRefresh) {
                   transition:color 100ms">★</button>`).join('')}
             </div>
           </div>
-          ${showTasks ? `<div class="field"><label>Tasks</label><div class="detail-task-list edit">
-            ${tasks.map(t => _buildEditableTask(t)).join('')}
-          </div></div>` : ''}
+          <div class="field">
+            <label>${tasks.length > 1 ? 'Tasks & Dauer' : 'Dauer'}</label>
+            <div class="detail-task-list edit">
+              ${(tasks.length
+                  ? tasks
+                  : [{ id: '__session__', title: tasks[0]?.title || 'Allgemein', durationSeconds: session.durationSeconds || 0, status: 'done' }]
+                ).map(t => _buildEditableTask(t)).join('')}
+            </div>
+          </div>
         </div>`;
     }
 
@@ -335,20 +341,6 @@ function _showDetailModal(s, sub, d, container, onRefresh) {
         stars.forEach((st, i) => { st.style.color = i < editRating ? 'var(--warning)' : 'var(--text-disabled)'; });
       });
     });
-
-    /* Task duration inputs */
-    modal.el.querySelectorAll('.task-dur-input').forEach(inp => {
-      inp.addEventListener('blur', () => {
-        const taskId = inp.dataset.taskId;
-        const secs   = parseDurationInput(inp.value);
-        if (secs >= 0) {
-          currentSession = {
-            ...currentSession,
-            tasks: currentSession.tasks.map(t => t.id === taskId ? { ...t, durationSeconds: secs } : t)
-          };
-        }
-      });
-    });
   }
 
   /* Toggle edit mode */
@@ -391,23 +383,26 @@ function _showDetailModal(s, sub, d, container, onRefresh) {
       startedAt = new Date(`${dateVal}T${timeVal}`).toISOString();
     }
 
-    /* Collect task edits */
-    const updatedTasks = (currentSession.tasks || []).map(t => {
-      const titleInp = modal.el.querySelector(`.task-title-input[data-task-id="${t.id}"]`);
-      const title = (titleInp?.value || '').trim() || t.title;
-      const h = Math.max(0, parseInt(modal.el.querySelector(`.task-hms[data-part="h"][data-task-id="${t.id}"]`)?.value || '0', 10) || 0);
-      const mi = Math.max(0, parseInt(modal.el.querySelector(`.task-hms[data-part="m"][data-task-id="${t.id}"]`)?.value || '0', 10) || 0);
-      const se = Math.max(0, parseInt(modal.el.querySelector(`.task-hms[data-part="s"][data-task-id="${t.id}"]`)?.value || '0', 10) || 0);
-      let secs = h * 3600 + Math.min(59, mi) * 60 + Math.min(59, se);
-      const durInp = modal.el.querySelector(`.task-dur-input[data-task-id="${t.id}"]`);
-      if (durInp?.value?.trim()) {
-        const parsed = parseDurationInput(durInp.value);
-        if (parsed >= 0) secs = parsed;
-      }
-      return { ...t, title, durationSeconds: secs };
-    });
+    /* Read h:m:s for a given row id (single source of truth, m/s capped at 59) */
+    const readRowSecs = (taskId) => {
+      const part = (p) => Math.max(0, parseInt(
+        modal.el.querySelector(`.task-hms[data-part="${p}"][data-task-id="${taskId}"]`)?.value || '0', 10) || 0);
+      return part('h') * 3600 + Math.min(59, part('m')) * 60 + Math.min(59, part('s'));
+    };
 
-    const totalDur = updatedTasks.reduce((s, t) => s + (t.durationSeconds || 0), 0);
+    /* Collect task edits — handle sessions without tasks via the __session__ row */
+    let updatedTasks = currentSession.tasks || [];
+    let totalDur;
+    if (updatedTasks.length) {
+      updatedTasks = updatedTasks.map(t => {
+        const titleInp = modal.el.querySelector(`.task-title-input[data-task-id="${t.id}"]`);
+        const title = (titleInp?.value || '').trim() || t.title;
+        return { ...t, title, durationSeconds: readRowSecs(t.id) };
+      });
+      totalDur = updatedTasks.reduce((s, t) => s + (t.durationSeconds || 0), 0);
+    } else {
+      totalDur = readRowSecs('__session__');
+    }
     const wallSec = currentSession.endedAt && currentSession.startedAt
       ? Math.max(0, (new Date(currentSession.endedAt) - new Date(currentSession.startedAt)) / 1000)
       : null;
@@ -483,7 +478,6 @@ function _showDetailModal(s, sub, d, container, onRefresh) {
 }
 
 function _buildEditableTask(task) {
-  const durStr = _secsToDurStr(Math.round(task.durationSeconds || 0));
   const ts = Math.round(task.durationSeconds || 0);
   const h = Math.floor(ts / 3600);
   const m = Math.floor((ts % 3600) / 60);
@@ -493,41 +487,11 @@ function _buildEditableTask(task) {
     <span class="detail-task-status">${task.status === 'done' ? '✓' : '○'}</span>
     <input class="input task-title-input" data-task-id="${task.id}" value="${safeTitle}" style="flex:1;min-width:140px" />
     <div class="task-time-edit" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:12px;color:var(--text-tertiary)">
-      <input type="number" min="0" class="input task-hms" data-part="h" data-task-id="${task.id}" value="${h}" style="width:50px;padding:4px 6px" title="h"/>
+      <input type="number" min="0" max="23" class="input task-hms" data-part="h" data-task-id="${task.id}" value="${h}" style="width:50px;padding:4px 6px" title="Stunden"/>
       <span>:</span>
-      <input type="number" min="0" max="59" class="input task-hms" data-part="m" data-task-id="${task.id}" value="${m}" style="width:50px;padding:4px 6px" title="m"/>
+      <input type="number" min="0" max="59" class="input task-hms" data-part="m" data-task-id="${task.id}" value="${m}" style="width:50px;padding:4px 6px" title="Minuten"/>
       <span>:</span>
-      <input type="number" min="0" max="59" class="input task-hms" data-part="s" data-task-id="${task.id}" value="${s}" style="width:50px;padding:4px 6px" title="s"/>
-      <input class="input task-dur-input" data-task-id="${task.id}" value="${durStr}" placeholder="1h 5m"
-        style="width:88px;font-size:12px;padding:4px 8px;font-family:var(--font-mono)" />
+      <input type="number" min="0" max="59" class="input task-hms" data-part="s" data-task-id="${task.id}" value="${s}" style="width:50px;padding:4px 6px" title="Sekunden"/>
     </div>
   </div>`;
-}
-
-function _secsToDurStr(secs) {
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = secs % 60;
-  if (h > 0 && s === 0) return `${h}h ${m}m`;
-  if (h > 0)            return `${h}h ${m}m ${s}s`;
-  if (m > 0 && s === 0) return `${m}m`;
-  if (m > 0)            return `${m}m ${s}s`;
-  return `${s}s`;
-}
-
-function parseDurationInput(str) {
-  if (!str?.trim()) return -1;
-  str = str.trim().toLowerCase();
-  let total = 0;
-  const hMatch = str.match(/(\d+(?:\.\d+)?)\s*h/);
-  const mMatch = str.match(/(\d+(?:\.\d+)?)\s*m(?!s)/);
-  const sMatch = str.match(/(\d+(?:\.\d+)?)\s*s/);
-  if (hMatch) total += parseFloat(hMatch[1]) * 3600;
-  if (mMatch) total += parseFloat(mMatch[1]) * 60;
-  if (sMatch) total += parseFloat(sMatch[1]);
-  if (!hMatch && !mMatch && !sMatch) {
-    const n = parseFloat(str);
-    if (!isNaN(n)) total = n * 60;
-  }
-  return Math.round(total);
 }
