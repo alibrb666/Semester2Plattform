@@ -794,14 +794,12 @@ function _openSubjectModal(subj, isNew, container) {
 
   modal.el.querySelector('#subj-del')?.addEventListener('click', () => {
     const sessionCount = State.getSessions().filter(s => s.subjectId === subj.id).length;
-    if (sessionCount > 0) {
-      Toast.error('Fach hat Sessions', `${sessionCount} Session${sessionCount===1?'':'s'} sind diesem Fach zugeordnet — erst Sessions löschen oder Fach umbenennen.`);
-      return;
-    }
     State.removeSubject(subj.id);
     Storage.saveNow(State.get());
     modal.close();
-    Toast.success('Fach gelöscht');
+    Toast.success('Fach gelöscht', sessionCount
+      ? `${sessionCount} Session${sessionCount===1?'':'s'} bleiben im Archiv erhalten.`
+      : 'Das Fach wurde gelöscht.');
     renderSettings(container);
   });
 

@@ -115,6 +115,7 @@ const DEFAULT_STATE = {
     timezoneOffset: ''
   },
   subjects: [],
+  archivedSubjects: [],
   sessions: [],
   scheduleBlocks: [],
   errorLog: [],

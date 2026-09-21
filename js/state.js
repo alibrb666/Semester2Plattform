@@ -33,6 +33,7 @@ export const State = {
   getSettings()     { return _state.settings       || {}; },
   getSessions()     { return _state.sessions        || []; },
   getSubjects()     { return _state.subjects        || []; },
+  getArchivedSubjects() { return _state.archivedSubjects || []; },
   getBlocks()       { return _state.scheduleBlocks  || []; },
   getErrors()       { return _state.errorLog        || []; },
   getMocks()        { return _state.mocks           || []; },
@@ -127,7 +128,17 @@ export const State = {
     Sync.pushProfileState(_state, _userId);
   },
   removeSubject(id) {
-    this.set({ subjects: this.getSubjects().filter(s => s.id !== id) });
+    const subject = this.getSubject(id);
+    const archivedSubjects = subject
+      ? [
+          ...this.getArchivedSubjects().filter(s => s.id !== id),
+          { ...subject, archivedAt: new Date().toISOString() }
+        ]
+      : this.getArchivedSubjects();
+    this.set({
+      subjects: this.getSubjects().filter(s => s.id !== id),
+      archivedSubjects
+    });
     Sync.deleteSubject(id, _userId);
     Sync.pushProfileState(_state, _userId);
   },

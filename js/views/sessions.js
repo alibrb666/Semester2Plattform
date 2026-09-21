@@ -19,12 +19,22 @@ function popTrash(id) {
 export function renderSessions(container) {
   const sessions  = [...State.getSessions()].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
   const subjects  = State.getSubjects();
+  const archivedSubjects = State.getArchivedSubjects();
   let filterSubj  = 'all';
   let filterRange = 'all';
 
+  const activeSubjectIds = new Set(subjects.map(s => s.id));
+  const archivedById = new Map(archivedSubjects.map(s => [s.id, s]));
+  const isArchivedSession = s => Boolean(s.subjectId) &&
+    (archivedById.has(s.subjectId) || !activeSubjectIds.has(s.subjectId));
+  const subjectForSession = s => subjects.find(x => x.id === s.subjectId) || archivedById.get(s.subjectId);
+  const subjectColor = s => subjectForSession(s)?.colorHex || `var(--subject-${s.subjectId})`;
+
   function getFiltered() {
     return sessions.filter(s => {
-      if (filterSubj !== 'all' && s.subjectId !== filterSubj) return false;
+      if (filterSubj === 'all' && isArchivedSession(s)) return false;
+      if (filterSubj === 'archive' && !isArchivedSession(s)) return false;
+      if (filterSubj !== 'all' && filterSubj !== 'archive' && s.subjectId !== filterSubj) return false;
       if (filterRange === 'week') {
         const d   = new Date(s.startedAt);
         const now = new Date();
@@ -89,18 +99,19 @@ export function renderSessions(container) {
       const dayTotal = sumDuration(daySess);
       html += `<div class="sessions-group-header">${day} · ${formatDuration(dayTotal)}</div>`;
       daySess.forEach(s => {
-        const sub   = subjects.find(x => x.id === s.subjectId);
+        const sub   = subjectForSession(s);
+        const color = subjectColor(s);
         const t     = new Date(s.startedAt).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' });
         const tsum  = taskSummary(s);
         const demo  = s.isDemo ? '<span class="badge badge-warning" style="font-size:10px">Demo</span>' : '';
         html += `<div class="session-row" data-session-id="${s.id}" role="button" tabindex="0"
             aria-label="${sub?.name} ${formatDuration(sessionSecondsTotal(s))}">
-          <div class="session-row-bar" style="background:var(--subject-${s.subjectId})"></div>
-          <div class="session-row-icon" style="background:var(--subject-${s.subjectId}22);color:var(--subject-${s.subjectId})">
+          <div class="session-row-bar" style="background:${color}"></div>
+          <div class="session-row-icon" style="background:color-mix(in srgb, ${color} 14%, transparent);color:${color}">
             <i data-lucide="timer"></i>
           </div>
           <div class="session-row-info">
-            <div class="session-row-subject">${sub?.name || s.subjectId} ${demo}</div>
+            <div class="session-row-subject">${sub?.name || s.subjectId || 'Allgemein'} ${isArchivedSession(s) ? '<span class="badge badge-muted" style="font-size:10px">Archiv</span>' : ''} ${demo}</div>
             <div class="session-row-note">${s.note || 'Keine Notiz'}</div>
           </div>
           <div class="session-row-tags">
@@ -136,7 +147,8 @@ export function renderSessions(container) {
         <div class="filter-group">
           <span class="filter-label">Fach:</span>
           <select class="select" id="filter-subj" style="padding:6px 28px 6px 10px">
-            <option value="all">Alle</option>
+            <option value="all">Aktive Fächer</option>
+            <option value="archive">Archiv</option>
             ${subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
           </select>
         </div>
@@ -168,7 +180,8 @@ function openSessionDetail(id, container, onRefresh) {
   const s = State.getSessions().find(x => x.id === id);
   if (!s) return;
 
-  const sub = State.getSubjects().find(x => x.id === s.subjectId);
+  const sub = State.getSubjects().find(x => x.id === s.subjectId)
+    || State.getArchivedSubjects().find(x => x.id === s.subjectId);
   const d   = new Date(s.startedAt);
 
   _showDetailModal(s, sub, d, container, onRefresh);
